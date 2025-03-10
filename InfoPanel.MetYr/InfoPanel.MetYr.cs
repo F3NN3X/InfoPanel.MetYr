@@ -18,7 +18,8 @@ namespace InfoPanel.Extras
         private double _longitude;
         private string? _location;
         private bool _coordinatesSet = false;
-        private int _refreshIntervalMinutes = 60; // Default to 60 minutes
+        private int _refreshIntervalMinutes = 60;
+        private DateTime _lastUpdateTime = DateTime.MinValue; // Track last update
 
         private readonly PluginText _name = new("name", "Name", "-");
         private readonly PluginText _weather = new("weather", "Weather", "-");
@@ -49,7 +50,7 @@ namespace InfoPanel.Extras
         {
             _httpClient.DefaultRequestHeaders.Add(
                 "User-Agent",
-                "InfoPanel-YrWeatherPlugin/1.0 (contact@example.com)"
+                "InfoPanel-YrWeatherPlugin/1.0 (hello@themely.dev)"
             );
         }
 
@@ -67,7 +68,7 @@ namespace InfoPanel.Extras
             if (!File.Exists(_configFilePath))
             {
                 config = new IniData();
-                config["Yr Weather Plugin"]["Location"] = "Porsgrunn, Norway";
+                config["Yr Weather Plugin"]["Location"] = "Oslo, Norway";
                 config["Yr Weather Plugin"]["RefreshIntervalMinutes"] = "60";
                 parser.WriteFile(_configFilePath, config);
                 _location = "Porsgrunn, Norway";
@@ -76,10 +77,10 @@ namespace InfoPanel.Extras
             else
             {
                 config = parser.ReadFile(_configFilePath);
-                _location = config["Yr Weather Plugin"]["Location"] ?? "Porsgrunn, Norway";
+                _location = config["Yr Weather Plugin"]["Location"] ?? "Oslo, Norway";
                 if (!int.TryParse(config["Yr Weather Plugin"]["RefreshIntervalMinutes"], out _refreshIntervalMinutes) || _refreshIntervalMinutes <= 0)
                 {
-                    _refreshIntervalMinutes = 60; // Default if invalid
+                    _refreshIntervalMinutes = 60;
                 }
             }
 
@@ -148,6 +149,15 @@ namespace InfoPanel.Extras
                 return;
             }
 
+            // Log refresh timing
+            var now = DateTime.UtcNow;
+            Console.WriteLine($"Weather Plugin: UpdateAsync called at {now:yyyy-MM-ddTHH:mm:ssZ}");
+            if (_lastUpdateTime != DateTime.MinValue)
+            {
+                var timeSinceLast = now - _lastUpdateTime;
+                Console.WriteLine($"Weather Plugin: Time since last update: {timeSinceLast.TotalMinutes:F2} minutes");
+            }
+
             if (!_coordinatesSet)
             {
                 await SetCoordinatesFromLocation(_location, cancellationToken);
@@ -157,6 +167,7 @@ namespace InfoPanel.Extras
             if (!cancellationToken.IsCancellationRequested)
             {
                 await GetWeather(cancellationToken);
+                _lastUpdateTime = DateTime.UtcNow; // Update last fetch time
             }
             else
             {
@@ -261,7 +272,6 @@ namespace InfoPanel.Extras
 
                 if (forecast?.Properties?.Timeseries?.Length > 0)
                 {
-                    // Use the first timeseries entry as current data
                     var current = forecast.Properties.Timeseries[0];
                     Console.WriteLine($"Weather Plugin: Selected timeseries time: {current.Time}");
                     Console.WriteLine($"Weather Plugin: Raw timeseries JSON: {JsonSerializer.Serialize(current)}");
@@ -284,16 +294,17 @@ namespace InfoPanel.Extras
                     _weatherDesc.Value = next1Hour?.Summary?.SymbolCode?.Replace("_", " ") ?? "-";
                     _weatherIcon.Value = next1Hour?.Summary?.SymbolCode ?? "-";
 
-                    // Validate and set weather icon URL
+                    // Use GitHub raw link for weather icon
                     string potentialIconUrl = next1Hour?.Summary?.SymbolCode != null
-                        ? $"https://api.met.no/weatherapi/weathericon/2.0/data?symbol={Uri.EscapeDataString(next1Hour.Summary.SymbolCode)}"
+                        ? $"https://raw.githubusercontent.com/metno/weathericons/main/weather/png/{next1Hour.Summary.SymbolCode}.png"
                         : "-";
                     _weatherIconUrl.Value = await ValidateIconUrl(potentialIconUrl) ? potentialIconUrl : "-";
 
                     _temp.Value = (float)details.AirTemperature;
-                    _pressure.Value = (float)details.AirPressureAtSeaLevel; // Using sea level as proxy
+                    _pressure.Value = (float)details.AirPressureAtSeaLevel;
                     _seaLevel.Value = (float)details.AirPressureAtSeaLevel;
                     _feelsLike.Value = (float)CalculateFeelsLike(details.AirTemperature, details.WindSpeed, details.RelativeHumidity);
+                    Console.WriteLine($"Weather Plugin: FeelsLike raw value: {_feelsLike.Value.ToString(CultureInfo.InvariantCulture)}");
                     _humidity.Value = (float)details.RelativeHumidity;
 
                     _windSpeed.Value = (float)details.WindSpeed;
@@ -301,16 +312,10 @@ namespace InfoPanel.Extras
                     _windGust.Value = (float)(details.WindSpeedOfGust ?? details.WindSpeed);
 
                     _clouds.Value = (float)details.CloudAreaFraction;
-
                     _rain.Value = (float)(next1Hour?.Details?.PrecipitationAmount ?? 0);
-                    _snow.Value = 0; // MET/Yr doesn't provide snow explicitly in next_1_hours, adjust if needed
+                    _snow.Value = next1Hour?.Details?.PrecipitationCategory == "snow" ? (float)(next1Hour.Details.PrecipitationAmount) : 0;
 
-                    if (next1Hour?.Details?.PrecipitationCategory == "snow")
-                        _snow.Value = (float)(next1Hour.Details.PrecipitationAmount);
-                    else if (next1Hour?.Details?.PrecipitationCategory == "rain")
-                        _rain.Value = (float)(next1Hour.Details.PrecipitationAmount);
-
-                    Console.WriteLine($"Weather Plugin: Data set - Temp: {_temp.Value.ToString(CultureInfo.InvariantCulture)}, Weather: {_weather.Value}");
+                    Console.WriteLine($"Weather Plugin: Data set - Temp: {_temp.Value.ToString(CultureInfo.InvariantCulture)}, FeelsLike: {_feelsLike.Value.ToString(CultureInfo.InvariantCulture)}, Weather: {_weather.Value}");
                 }
                 else
                 {
