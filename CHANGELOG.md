@@ -2,6 +2,11 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [1.1.0] - 2025-03-10
+- **Enhanced Forecast Reliability**: Switched 5-day forecast weather to use `next_6_hours` data for consistent symbol codes, fixing blank "Weather" entries.
+- **Null Safety**: Added null checks and `DateTime.TryParse` in `BuildForecastTable` to resolve CS8604/CS8602 warnings.
+- **Documentation**: Added detailed code comments and updated README with table data explanation.
+
 ## [1.0.0] - 2025-03-10
 
 ### Added
