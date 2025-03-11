@@ -54,9 +54,12 @@ Example output:
 ### Configuration
 - **`YrWeatherPlugin.ini`**:
   ```ini
-    [Yr Weather Plugin]
-    Location=YOURLOCATION, COUTNRYIFNEEDED
-    RefreshIntervalMinutes=60
+  [Yr Weather Plugin]
+  Location = YOUR LOCATION
+  RefreshIntervalMinutes=60 //How often to refresh data
+  DateTimeFormat=dd-MMM-yy HH:mm // Date and time format
+  UtcOffsetHours=1 // Offset hours (0 = UTC, 1 = CET -5 = EST)
+  ForecastDays=5 // Days in forecast
 
 Edit `YrWeatherPlugin.ini` to adjust:
 - `Location`: City or region (e.g., "Oslo, Norway").
