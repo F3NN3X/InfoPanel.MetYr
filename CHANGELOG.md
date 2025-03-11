@@ -2,6 +2,26 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [1.3.0] - 2025-03-11
+
+### Added
+- **UTC Offset Adjustment**: Added `UtcOffsetHours` INI setting to adjust the "Last Refreshed" time to local time (e.g., `+1` for CET, `-5` for EST). Replaces the earlier `ShowUtcOffset` boolean.
+
+### Changed
+- **Time Display Logic**: Improved the `UpdateAsync` method with simplified time adjustment and added debug logging to track UTC time, adjusted time, and final formatted output.
+- **Forecast Temperature Order**: Swapped the Min/Max temperature display in the forecast table to show Max first, then Min (e.g., "15° / 5°" instead of "5° / 15°").
+
+### Fixed
+- Ensured robust parsing of `UtcOffsetHours` with fallback to 0 if invalid, with appropriate logging.
+
+## [1.2.0] - 2025-03-11
+
+### Added
+- **Custom Date Formatting**: Implemented configurable C# custom date formatting for "Last Refreshed" with validation via the `DateTimeFormat` INI setting.
+
+### Changed
+- **Forecast Field Rename**: Renamed "5-Day Forecast" to "Forecast" for flexibility, reflecting the configurable `ForecastDays` setting.
+
 ## [1.1.0] - 2025-03-10
 - **Enhanced Forecast Reliability**: Switched 5-day forecast weather to use `next_6_hours` data for consistent symbol codes, fixing blank "Weather" entries.
 - **Null Safety**: Added null checks and `DateTime.TryParse` in `BuildForecastTable` to resolve CS8604/CS8602 warnings.

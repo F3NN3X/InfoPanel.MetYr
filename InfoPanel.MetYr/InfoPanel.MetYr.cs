@@ -12,15 +12,21 @@ using System.Data;
 
 /*
  * Plugin: InfoPanel.MetYr
- * Version: 1.1.0
+ * Version: 1.3.0
  * Author: F3NN3X
- * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions (temperature, wind, precipitation, etc.) and a 5-day forecast table. Supports configurable locations via an INI file, with automatic geocoding using Nominatim. Updates hourly by default, with robust null safety and detailed logging.
+ * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions (temperature, wind, precipitation, etc.) and a configurable forecast table. Supports configurable locations, date formats, and UTC offset adjustment via an INI file, with automatic geocoding using Nominatim. Updates hourly by default, with robust null safety and detailed logging.
  * Changelog (Recent):
+ *   - v1.3.0 (Mar 11, 2025): Enhanced time display and forecast formatting.
+ *     - Added `UtcOffsetHours` INI setting to adjust Last Refreshed to local time (e.g., +1 for CET, -5 for EST), replacing `ShowUtcOffset`.
+ *     - Improved time adjustment logic with debug logging for Last Refreshed.
+ *     - Swapped forecast temperature display to Max/Min order (e.g., "15° / 5°" instead of "5° / 15°").
+ *   - v1.2.0 (Mar 11, 2025): Added custom date formatting and renamed forecast field.
+ *     - Implemented configurable C# custom date formatting for Last Refreshed with validation.
+ *     - Renamed "5-Day Forecast" to "Forecast" for flexibility.
  *   - v1.1.0 (Mar 10, 2025): Enhanced forecast reliability and null safety.
- *     - Switched 5-day forecast weather to use next_6_hours data for consistent symbol codes.
+ *     - Switched forecast weather to use next_6_hours data for consistent symbol codes.
  *     - Added null checks and DateTime.TryParse in BuildForecastTable to resolve CS8604/CS8602 warnings.
  *     - Default location updated to Oslo, Norway.
- *   - v1.0.0 (Initial Release): Basic weather and forecast functionality.
  * Note: Full history in CHANGELOG.md. Requires internet access for API calls.
  */
 
@@ -37,9 +43,11 @@ namespace InfoPanel.Extras
         private string? _location;             // Human-readable location name (e.g., "Oslo, Norway")
         private bool _coordinatesSet = false;  // Flag to track if coordinates have been initialized
         
-        // Update timing
+        // Update timing and format
         private int _refreshIntervalMinutes = 60;   // Default refresh interval (1 hour)
-        private DateTime _lastUpdateTime = DateTime.MinValue; // Last update timestamp
+        private DateTime _lastUpdateTime = DateTime.MinValue; // Last update timestamp (UTC)
+        private string _dateTimeFormat = "yyyy-MM-dd HH:mm";  // Default format for last refreshed time
+        private double _utcOffsetHours = 0;                   // UTC offset in hours (e.g., 1 for CET, -5 for EST)
 
         // Plugin data fields for current weather
         private readonly PluginText _name = new("name", "Name", "-");                   // Location name
@@ -47,6 +55,7 @@ namespace InfoPanel.Extras
         private readonly PluginText _weatherDesc = new("weather_desc", "Weather Description", "-"); // Weather with day/night detail
         private readonly PluginText _weatherIcon = new("weather_icon", "Weather Icon", "-");       // Weather icon code
         private readonly PluginText _weatherIconUrl = new("weather_icon_url", "Weather Icon URL", "-"); // URL to weather icon
+        private readonly PluginText _lastRefreshed = new("last_refreshed", "Last Refreshed", "-"); // Last update time
 
         private readonly PluginSensor _temp = new("temp", "Temperature", 0, "°C");         // Current temperature
         private readonly PluginSensor _pressure = new("pressure", "Pressure", 0, "hPa");   // Air pressure
@@ -64,7 +73,8 @@ namespace InfoPanel.Extras
 
         // Forecast table configuration
         private static readonly string _forecastTableFormat = "0:150|1:100|2:80|3:60|4:100"; // Column widths for Date|Weather|Temp|Precip|Wind
-        private readonly PluginTable _forecastTable = new("5-Day Forecast", new DataTable(), _forecastTableFormat); // 5-day forecast table
+        private readonly PluginTable _forecastTable = new("Forecast", new DataTable(), _forecastTableFormat); // Forecast table
+        private int _forecastDays = 5; // Number of forecast days (configurable)
 
         // Constructor: Initializes the plugin with a unique ID, name, and description
         public YrWeatherPlugin()
@@ -77,7 +87,7 @@ namespace InfoPanel.Extras
             // Set User-Agent for MET/Yr API compliance
             _httpClient.DefaultRequestHeaders.Add(
                 "User-Agent",
-                "InfoPanel-YrWeatherPlugin/1.1.0 (contact@example.com)"
+                "InfoPanel-YrWeatherPlugin/1.3.0 (contact@example.com)"
             );
         }
 
@@ -99,9 +109,15 @@ namespace InfoPanel.Extras
                 config = new IniData();
                 config["Yr Weather Plugin"]["Location"] = "Oslo, Norway"; // Default location
                 config["Yr Weather Plugin"]["RefreshIntervalMinutes"] = "60";
+                config["Yr Weather Plugin"]["DateTimeFormat"] = "yyyy-MM-dd HH:mm"; // Default date/time format
+                config["Yr Weather Plugin"]["UtcOffsetHours"] = "0"; // Default: UTC
+                config["Yr Weather Plugin"]["ForecastDays"] = "5"; // Default forecast length
                 parser.WriteFile(_configFilePath, config);
                 _location = "Oslo, Norway";
                 _refreshIntervalMinutes = 60;
+                _dateTimeFormat = "yyyy-MM-dd HH:mm";
+                _utcOffsetHours = 0;
+                _forecastDays = 5;
             }
             else
             {
@@ -109,13 +125,46 @@ namespace InfoPanel.Extras
                 config = parser.ReadFile(_configFilePath);
                 _location = config["Yr Weather Plugin"]["Location"] ?? "Oslo, Norway";
                 if (!int.TryParse(config["Yr Weather Plugin"]["RefreshIntervalMinutes"], out _refreshIntervalMinutes) || _refreshIntervalMinutes <= 0)
-                {
                     _refreshIntervalMinutes = 60; // Fallback to 1 hour if invalid
+                
+                // Validate and set date format
+                string formatFromIni = config["Yr Weather Plugin"]["DateTimeFormat"] ?? "yyyy-MM-dd HH:mm";
+                _dateTimeFormat = ValidateDateTimeFormat(formatFromIni) ? formatFromIni : "yyyy-MM-dd HH:mm";
+                
+                // Parse UtcOffsetHours (e.g., +1, -5), fallback to 0 if invalid
+                if (!double.TryParse(config["Yr Weather Plugin"]["UtcOffsetHours"], NumberStyles.Any, CultureInfo.InvariantCulture, out _utcOffsetHours))
+                {
+                    Console.WriteLine($"Weather Plugin: Invalid UtcOffsetHours '{config["Yr Weather Plugin"]["UtcOffsetHours"]}', defaulting to 0");
+                    _utcOffsetHours = 0; // Fallback to UTC
                 }
+                
+                if (!int.TryParse(config["Yr Weather Plugin"]["ForecastDays"], out _forecastDays) || _forecastDays < 1 || _forecastDays > 10)
+                    _forecastDays = 5; // Fallback to 5 days, cap at 10 (Yr API limit)
             }
 
             Console.WriteLine($"Weather Plugin: Read location from INI: {_location}");
             Console.WriteLine($"Weather Plugin: Refresh interval set to: {_refreshIntervalMinutes} minutes");
+            Console.WriteLine($"Weather Plugin: DateTime format set to: {_dateTimeFormat}");
+            Console.WriteLine($"Weather Plugin: UTC offset hours set to: {_utcOffsetHours}");
+            Console.WriteLine($"Weather Plugin: Forecast days set to: {_forecastDays}");
+        }
+
+        // ValidateDateTimeFormat: Ensures the custom DateTime format is valid per C# spec
+        private bool ValidateDateTimeFormat(string format)
+        {
+            try
+            {
+                // Test the format with current UTC time
+                DateTime testDate = DateTime.UtcNow;
+                string result = testDate.ToString(format, CultureInfo.InvariantCulture);
+                Console.WriteLine($"Weather Plugin: Validated format '{format}' -> '{result}'");
+                return true;
+            }
+            catch (FormatException ex)
+            {
+                Console.WriteLine($"Weather Plugin: Invalid DateTime format '{format}': {ex.Message}");
+                return false;
+            }
         }
 
         // Close: Cleanup method (currently empty)
@@ -128,7 +177,7 @@ namespace InfoPanel.Extras
         {
             var container = new PluginContainer(_location ?? $"Lat:{_latitude}, Lon:{_longitude}");
             container.Entries.AddRange(
-                [_name, _weather, _weatherDesc, _weatherIcon, _weatherIconUrl]
+                [_name, _weather, _weatherDesc, _weatherIcon, _weatherIconUrl, _lastRefreshed]
             );
             container.Entries.AddRange(
                 [
@@ -202,6 +251,22 @@ namespace InfoPanel.Extras
             {
                 await GetWeather(cancellationToken); // Fetch and process weather data
                 _lastUpdateTime = DateTime.UtcNow;
+                try
+                {
+                    DateTime adjustedTime = _lastUpdateTime.AddHours(_utcOffsetHours);
+                    string formattedTime = adjustedTime.ToString(_dateTimeFormat, CultureInfo.InvariantCulture);
+                    _lastRefreshed.Value = formattedTime;
+                    Console.WriteLine($"Weather Plugin: UTC time: {_lastUpdateTime:yyyy-MM-dd HH:mm:ss} UTC");
+                    Console.WriteLine($"Weather Plugin: Adjusted time: {adjustedTime:yyyy-MM-dd HH:mm:ss} (offset: {_utcOffsetHours} hours)");
+                    Console.WriteLine($"Weather Plugin: Last refreshed set to: {_lastRefreshed.Value}");
+                }
+                catch (FormatException ex)
+                {
+                    Console.WriteLine($"Weather Plugin: Error formatting last refreshed time with '{_dateTimeFormat}': {ex.Message}");
+                    DateTime adjustedTime = _lastUpdateTime.AddHours(_utcOffsetHours);
+                    _lastRefreshed.Value = adjustedTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+                    Console.WriteLine($"Weather Plugin: Fell back to: {_lastRefreshed.Value} (offset: {_utcOffsetHours} hours)");
+                }
             }
             else
             {
@@ -319,6 +384,7 @@ namespace InfoPanel.Extras
                     _weatherDesc.Value = next1Hour?.Summary?.SymbolCode?.Replace("_", " ") ?? "-";
                     _weatherIcon.Value = next1Hour?.Summary?.SymbolCode ?? "-";
 
+                    // Validate and update icon URL
                     string potentialIconUrl = next1Hour?.Summary?.SymbolCode != null
                         ? $"https://raw.githubusercontent.com/metno/weathericons/main/weather/png/{next1Hour.Summary.SymbolCode}.png"
                         : "-";
@@ -339,9 +405,9 @@ namespace InfoPanel.Extras
                     _rain.Value = (float)(next1Hour?.Details?.PrecipitationAmount ?? 0);
                     _snow.Value = next1Hour?.Details?.PrecipitationCategory == "snow" ? (float)(next1Hour.Details.PrecipitationAmount) : 0;
 
-                    Console.WriteLine($"Weather Plugin: Data set - Temp: {_temp.Value.ToString(CultureInfo.InvariantCulture)}, FeelsLike: {_feelsLike.Value.ToString(CultureInfo.InvariantCulture)}, Weather: {_weather.Value}");
+                    Console.WriteLine($"Weather Plugin: Data set - Temp: {_temp.Value.ToString(CultureInfo.InvariantCulture)}, FeelsLike: {_feelsLike.Value.ToString(CultureInfo.InvariantCulture)}, Weather: {_weather.Value}, Icon: {_weatherIcon.Value}");
 
-                    // Build and set the 5-day forecast table
+                    // Build and set the forecast table
                     _forecastTable.Value = BuildForecastTable(forecast.Properties.Timeseries);
                 }
                 else
@@ -355,19 +421,20 @@ namespace InfoPanel.Extras
             }
         }
 
-        // BuildForecastTable: Creates a 5-day forecast table from timeseries data
+        // BuildForecastTable: Creates a forecast table starting from tomorrow
         private DataTable BuildForecastTable(YrTimeseries[] timeseries)
         {
             var dataTable = new DataTable();
             dataTable.Columns.Add("Date", typeof(PluginText));    // Day of the forecast
             dataTable.Columns.Add("Weather", typeof(PluginText)); // Most frequent weather condition
-            dataTable.Columns.Add("Temp", typeof(PluginText));    // Min/max temperature
+            dataTable.Columns.Add("Temp", typeof(PluginText));    // Max/min temperature (swapped order)
             dataTable.Columns.Add("Precip", typeof(PluginSensor)); // Total precipitation
             dataTable.Columns.Add("Wind", typeof(PluginText));    // Average wind speed and direction
 
-            // Group timeseries into daily blocks for the next 5 days
-            var now = DateTime.UtcNow.Date; // Start from midnight today
-            var endTime = now.AddDays(5);
+            // Group timeseries into daily blocks starting from tomorrow
+            var now = DateTime.UtcNow.Date; // Current date
+            var startTime = now.AddDays(1); // Start from tomorrow
+            var endTime = startTime.AddDays(_forecastDays); // Configurable forecast length
             var dailyBlocks = new Dictionary<DateTime, List<YrTimeseries>>();
 
             foreach (var ts in timeseries)
@@ -379,7 +446,7 @@ namespace InfoPanel.Extras
                     continue;
                 }
                 var tsDate = tsTime.Date;
-                if (tsDate >= now && tsDate < endTime)
+                if (tsDate >= startTime && tsDate < endTime)
                 {
                     if (!dailyBlocks.ContainsKey(tsDate))
                         dailyBlocks[tsDate] = new List<YrTimeseries>();
@@ -413,9 +480,9 @@ namespace InfoPanel.Extras
                 Console.WriteLine($"Weather Plugin: Day {dateStr} - Valid next_6_hours symbol codes: {validSymbolCodes.Count}, Selected: {weatherStr}");
                 row["Weather"] = new PluginText("weather", weatherStr);
 
-                // Temperature: Min and max from instant details
+                // Temperature: Max then Min (swapped order)
                 var temps = blockData.Select(t => t?.Data?.Instant?.Details?.AirTemperature ?? 0);
-                string tempStr = $"{temps.Min():F0}° / {temps.Max():F0}°";
+                string tempStr = $"{temps.Max():F0}° / {temps.Min():F0}°";
                 row["Temp"] = new PluginText("temp", tempStr);
 
                 // Precipitation: Sum of next_6_hours amounts
@@ -451,7 +518,7 @@ namespace InfoPanel.Extras
             {
                 Console.WriteLine($"Weather Plugin: Validating icon URL: {url}");
                 var request = new HttpRequestMessage(HttpMethod.Head, url);
-                var response = await _httpClient.SendAsync(request);
+                var response = await _httpClient.SendAsync(request, CancellationToken.None); // No cancellation here for simplicity
                 bool isValid = response.IsSuccessStatusCode;
                 Console.WriteLine($"Weather Plugin: Icon URL validation result: {isValid} (Status: {response.StatusCode})");
                 return isValid;
