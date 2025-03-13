@@ -2,6 +2,27 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [1.4.2] - 2025-03-13
+
+### Changed
+- Adjusted OpenWeatherMap icon mapping: `fair_day`/`fair_night` now map to `01d`/`01n` (clear sky) instead of `02d`/`02n` (few clouds) to better match user expectations for clear weather conditions.
+
+## [1.4.1] - 2025-03-13
+
+### Changed
+- Reverted weather icons from MET/Yr PNGs to OpenWeatherMap icons (`@4x`, 400x400px) to resolve rendering cutoff issues in InfoPanel’s UI.
+
+## [1.4.0] - 2025-03-13
+
+### Added
+- Split weather data sources for improved accuracy:
+  - Current weather now fetched from `nowcast/2.0/complete` API endpoint.
+  - Forecast data fetched from `locationforecast/2.0/complete` API endpoint.
+- Attempted use of MET/Yr weather icons from GitHub raw URLs (`https://raw.githubusercontent.com/metno/weathericons/main/weather/png/`).
+
+### Removed
+- Retired older unified endpoint usage (`locationforecast/1.9`) in favor of split nowcast and forecast endpoints.
+
 ## [1.3.0] - 2025-03-11
 
 ### Added

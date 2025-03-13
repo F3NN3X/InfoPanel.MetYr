@@ -12,21 +12,13 @@ using System.Data;
 
 /*
  * Plugin: InfoPanel.MetYr
- * Version: 1.3.0
+ * Version: 1.4.2
  * Author: F3NN3X
- * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions (temperature, wind, precipitation, etc.) and a configurable forecast table. Supports configurable locations, date formats, and UTC offset adjustment via an INI file, with automatic geocoding using Nominatim. Updates hourly by default, with robust null safety and detailed logging.
+ * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions via nowcast (temperature, wind, precipitation, etc.) and a configurable forecast table via locationforecast. Supports configurable locations, date formats, and UTC offset adjustment via an INI file, with automatic geocoding using Nominatim. Updates hourly by default, with robust null safety and detailed logging.
  * Changelog (Recent):
- *   - v1.3.0 (Mar 11, 2025): Enhanced time display and forecast formatting.
- *     - Added `UtcOffsetHours` INI setting to adjust Last Refreshed to local time (e.g., +1 for CET, -5 for EST), replacing `ShowUtcOffset`.
- *     - Improved time adjustment logic with debug logging for Last Refreshed.
- *     - Swapped forecast temperature display to Max/Min order (e.g., "15° / 5°" instead of "5° / 15°").
- *   - v1.2.0 (Mar 11, 2025): Added custom date formatting and renamed forecast field.
- *     - Implemented configurable C# custom date formatting for Last Refreshed with validation.
- *     - Renamed "5-Day Forecast" to "Forecast" for flexibility.
- *   - v1.1.0 (Mar 10, 2025): Enhanced forecast reliability and null safety.
- *     - Switched forecast weather to use next_6_hours data for consistent symbol codes.
- *     - Added null checks and DateTime.TryParse in BuildForecastTable to resolve CS8604/CS8602 warnings.
- *     - Default location updated to Oslo, Norway.
+ *   - v1.4.2 (Mar 13, 2025): Adjusted OpenWeatherMap icon mapping: fair_day/night to 01d/01n (clear sky) instead of 02d/02n.
+ *   - v1.4.1 (Mar 13, 2025): Reverted to OpenWeatherMap icons due to MET/Yr PNG cutoff issue in InfoPanel.
+ *   - v1.4.0 (Mar 13, 2025): Split current and forecast data sources, attempted MET/Yr icons.
  * Note: Full history in CHANGELOG.md. Requires internet access for API calls.
  */
 
@@ -37,6 +29,33 @@ namespace InfoPanel.Extras
         // Shared HTTP client for API requests, initialized with a custom User-Agent
         private static readonly HttpClient _httpClient = new HttpClient();
         
+        // Mapping from MET/Yr symbol_code to OpenWeatherMap icon codes
+        private static readonly Dictionary<string, string> YrToOpenWeatherIconCode = new()
+        {
+            { "clearsky_day", "01d" }, { "clearsky_night", "01n" },
+            { "fair_day", "01d" }, { "fair_night", "01n" }, // Updated to clear sky (was 02d/02n)
+            { "partlycloudy_day", "02d" }, { "partlycloudy_night", "02n" }, // Few clouds
+            { "cloudy", "04d" }, // No day/night distinction in OWM for cloudy
+            { "rain", "10d" }, { "rain_day", "10d" }, { "rain_night", "10n" },
+            { "lightrain", "10d" }, { "lightrain_day", "10d" }, { "lightrain_night", "10n" },
+            { "heavyrain", "10d" }, // OWM lacks heavy rain distinction
+            { "lightrainshowers_day", "09d" }, { "lightrainshowers_night", "09n" },
+            { "rainshowers_day", "09d" }, { "rainshowers_night", "09n" },
+            { "heavyrainshowers_day", "09d" }, { "heavyrainshowers_night", "09n" },
+            { "snow", "13d" }, { "snow_day", "13d" }, { "snow_night", "13n" },
+            { "lightsnow", "13d" }, { "lightsnow_day", "13d" }, { "lightsnow_night", "13n" },
+            { "heavysnow", "13d" }, { "heavysnow_day", "13d" }, { "heavysnow_night", "13n" },
+            { "lightsnowshowers_day", "13d" }, { "lightsnowshowers_night", "13n" },
+            { "snowshowers_day", "13d" }, { "snowshowers_night", "13n" },
+            { "heavysnowshowers_day", "13d" }, { "heavysnowshowers_night", "13n" },
+            { "sleet", "13d" }, { "sleet_day", "13d" }, { "sleet_night", "13n" },
+            { "lightsleet", "13d" }, { "lightsleet_day", "13d" }, { "lightsleet_night", "13n" },
+            { "sleetshowers_day", "13d" }, { "sleetshowers_night", "13n" },
+            { "thunder", "11d" }, { "thunder_day", "11d" }, { "thunder_night", "11n" },
+            { "rainthunder", "11d" }, { "rainthunder_day", "11d" }, { "rainthunder_night", "11n" },
+            { "fog", "50d" }, { "fog_day", "50d" }, { "fog_night", "50n" }
+        };
+
         // Location coordinates and metadata
         private double _latitude;              // Latitude of the weather location
         private double _longitude;             // Longitude of the weather location
@@ -81,13 +100,13 @@ namespace InfoPanel.Extras
             : base(
                 "yr-weather-plugin",
                 "Weather Info - MET/Yr",
-                "Retrieves current weather information and forecasts from api.met.no."
+                "Retrieves current weather from nowcast and forecasts from locationforecast via api.met.no, using OpenWeatherMap icons."
             )
         {
             // Set User-Agent for MET/Yr API compliance
             _httpClient.DefaultRequestHeaders.Add(
                 "User-Agent",
-                "InfoPanel-YrWeatherPlugin/1.3.0 (contact@example.com)"
+                "InfoPanel-YrWeatherPlugin/1.4.2 (contact@example.com)"
             );
         }
 
@@ -154,7 +173,6 @@ namespace InfoPanel.Extras
         {
             try
             {
-                // Test the format with current UTC time
                 DateTime testDate = DateTime.UtcNow;
                 string result = testDate.ToString(format, CultureInfo.InvariantCulture);
                 Console.WriteLine($"Weather Plugin: Validated format '{format}' -> '{result}'");
@@ -334,85 +352,94 @@ namespace InfoPanel.Extras
             }
         }
 
-        // GetWeather: Fetches and processes weather data from MET/Yr API
+        // GetWeather: Fetches current weather from nowcast and forecast from locationforecast
         private async Task GetWeather(CancellationToken cancellationToken)
         {
             try
             {
                 string latStr = _latitude.ToString("0.0000", CultureInfo.InvariantCulture);
                 string lonStr = _longitude.ToString("0.0000", CultureInfo.InvariantCulture);
-                string url = $"https://api.met.no/weatherapi/locationforecast/2.0/complete?lat={latStr}&lon={lonStr}";
-                Console.WriteLine($"Weather Plugin: Fetching weather from: {url}");
-                var response = await _httpClient.GetAsync(url, cancellationToken);
+                string nowcastUrl = $"https://api.met.no/weatherapi/nowcast/2.0/complete?lat={latStr}&lon={lonStr}";
+                string forecastUrl = $"https://api.met.no/weatherapi/locationforecast/2.0/complete?lat={latStr}&lon={lonStr}";
 
-                Console.WriteLine($"Weather Plugin: MET/Yr response status: {response.StatusCode}");
-                if (!response.IsSuccessStatusCode)
+                // Fetch current weather from nowcast
+                Console.WriteLine($"Weather Plugin: Fetching current weather from: {nowcastUrl}");
+                var nowcastResponse = await _httpClient.GetAsync(nowcastUrl, cancellationToken);
+                if (nowcastResponse.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"Weather Plugin: MET/Yr request failed with status: {response.StatusCode}");
-                    return;
-                }
+                    var nowcastJson = await nowcastResponse.Content.ReadAsStringAsync(cancellationToken);
+                    Console.WriteLine($"Weather Plugin: Nowcast response (first 500 chars): {nowcastJson.Substring(0, Math.Min(nowcastJson.Length, 500))}...");
+                    var nowcast = JsonSerializer.Deserialize<YrNowcast>(
+                        nowcastJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                    );
 
-                var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                Console.WriteLine($"Weather Plugin: MET/Yr response (first 500 chars): {json.Substring(0, Math.Min(json.Length, 500))}...");
-                var forecast = JsonSerializer.Deserialize<YrForecast>(
-                    json,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-                );
-
-                if (forecast?.Properties?.Timeseries?.Length > 0)
-                {
-                    // Process current weather from the first timeseries entry
-                    var current = forecast.Properties.Timeseries[0];
-                    Console.WriteLine($"Weather Plugin: Selected timeseries time: {current.Time}");
-                    Console.WriteLine($"Weather Plugin: Raw timeseries JSON: {JsonSerializer.Serialize(current)}");
-
-                    var instant = current.Data?.Instant;
-                    if (instant?.Details == null)
+                    if (nowcast?.Properties?.Timeseries?.Length > 0)
                     {
-                        Console.WriteLine("Weather Plugin: No instant details available in response.");
-                        return;
+                        var current = nowcast.Properties.Timeseries[0];
+                        Console.WriteLine($"Weather Plugin: Current timeseries time: {current.Time}");
+                        var instant = current.Data?.Instant;
+                        var next1Hour = current.Data?.Next1Hours;
+
+                        if (instant?.Details != null)
+                        {
+                            _name.Value = _location ?? $"Lat:{_latitude.ToString(CultureInfo.InvariantCulture)}, Lon:{_longitude.ToString(CultureInfo.InvariantCulture)}";
+                            _weather.Value = next1Hour?.Summary?.SymbolCode?.Split('_')[0] ?? "-";
+                            _weatherDesc.Value = next1Hour?.Summary?.SymbolCode?.Replace("_", " ") ?? "-";
+                            _weatherIcon.Value = next1Hour?.Summary?.SymbolCode ?? "-";
+                            string iconCode = YrToOpenWeatherIconCode.TryGetValue(_weatherIcon.Value, out var code) ? code : "04d";
+                            _weatherIconUrl.Value = $"https://openweathermap.org/img/wn/{iconCode}@4x.png";
+                            Console.WriteLine($"Weather Plugin: Current icon URL: {_weatherIconUrl.Value}");
+
+                            _temp.Value = (float)instant.Details.AirTemperature;
+                            _pressure.Value = (float)instant.Details.AirPressureAtSeaLevel;
+                            _seaLevel.Value = (float)instant.Details.AirPressureAtSeaLevel;
+                            _feelsLike.Value = (float)CalculateFeelsLike(instant.Details.AirTemperature, instant.Details.WindSpeed, instant.Details.RelativeHumidity);
+                            _humidity.Value = (float)instant.Details.RelativeHumidity;
+                            _windSpeed.Value = (float)instant.Details.WindSpeed;
+                            _windDeg.Value = (float)instant.Details.WindFromDirection;
+                            _windGust.Value = (float)(instant.Details.WindSpeedOfGust ?? instant.Details.WindSpeed);
+                            _clouds.Value = (float)instant.Details.CloudAreaFraction;
+                            _rain.Value = (float)(next1Hour?.Details?.PrecipitationAmount ?? 0);
+                            _snow.Value = next1Hour?.Details?.PrecipitationCategory == "snow" ? (float)(next1Hour.Details.PrecipitationAmount) : 0;
+
+                            Console.WriteLine($"Weather Plugin: Current data set - Temp: {_temp.Value}, Weather: {_weather.Value}");
+                        }
                     }
-
-                    var details = instant.Details;
-                    var next1Hour = current.Data?.Next1Hours;
-
-                    Console.WriteLine("Weather Plugin: Parsing current weather data...");
-                    Console.WriteLine($"Weather Plugin: Raw JSON instant details: {JsonSerializer.Serialize(details)}");
-
-                    _name.Value = _location ?? $"Lat:{_latitude.ToString(CultureInfo.InvariantCulture)}, Lon:{_longitude.ToString(CultureInfo.InvariantCulture)}";
-                    _weather.Value = next1Hour?.Summary?.SymbolCode?.Split('_')[0] ?? "-";
-                    _weatherDesc.Value = next1Hour?.Summary?.SymbolCode?.Replace("_", " ") ?? "-";
-                    _weatherIcon.Value = next1Hour?.Summary?.SymbolCode ?? "-";
-
-                    // Validate and update icon URL
-                    string potentialIconUrl = next1Hour?.Summary?.SymbolCode != null
-                        ? $"https://raw.githubusercontent.com/metno/weathericons/main/weather/png/{next1Hour.Summary.SymbolCode}.png"
-                        : "-";
-                    _weatherIconUrl.Value = await ValidateIconUrl(potentialIconUrl) ? potentialIconUrl : "-";
-
-                    _temp.Value = (float)details.AirTemperature;
-                    _pressure.Value = (float)details.AirPressureAtSeaLevel;
-                    _seaLevel.Value = (float)details.AirPressureAtSeaLevel;
-                    _feelsLike.Value = (float)CalculateFeelsLike(details.AirTemperature, details.WindSpeed, details.RelativeHumidity);
-                    Console.WriteLine($"Weather Plugin: FeelsLike raw value: {_feelsLike.Value.ToString(CultureInfo.InvariantCulture)}");
-                    _humidity.Value = (float)details.RelativeHumidity;
-
-                    _windSpeed.Value = (float)details.WindSpeed;
-                    _windDeg.Value = (float)details.WindFromDirection;
-                    _windGust.Value = (float)(details.WindSpeedOfGust ?? details.WindSpeed);
-
-                    _clouds.Value = (float)details.CloudAreaFraction;
-                    _rain.Value = (float)(next1Hour?.Details?.PrecipitationAmount ?? 0);
-                    _snow.Value = next1Hour?.Details?.PrecipitationCategory == "snow" ? (float)(next1Hour.Details.PrecipitationAmount) : 0;
-
-                    Console.WriteLine($"Weather Plugin: Data set - Temp: {_temp.Value.ToString(CultureInfo.InvariantCulture)}, FeelsLike: {_feelsLike.Value.ToString(CultureInfo.InvariantCulture)}, Weather: {_weather.Value}, Icon: {_weatherIcon.Value}");
-
-                    // Build and set the forecast table
-                    _forecastTable.Value = BuildForecastTable(forecast.Properties.Timeseries);
+                    else
+                    {
+                        Console.WriteLine("Weather Plugin: No timeseries data in nowcast response.");
+                    }
                 }
                 else
                 {
-                    Console.WriteLine("Weather Plugin: No timeseries data in response.");
+                    Console.WriteLine($"Weather Plugin: Nowcast request failed with status: {nowcastResponse.StatusCode}");
+                }
+
+                // Fetch forecast from locationforecast
+                Console.WriteLine($"Weather Plugin: Fetching forecast from: {forecastUrl}");
+                var forecastResponse = await _httpClient.GetAsync(forecastUrl, cancellationToken);
+                if (forecastResponse.IsSuccessStatusCode)
+                {
+                    var forecastJson = await forecastResponse.Content.ReadAsStringAsync(cancellationToken);
+                    Console.WriteLine($"Weather Plugin: Forecast response (first 500 chars): {forecastJson.Substring(0, Math.Min(forecastJson.Length, 500))}...");
+                    var forecast = JsonSerializer.Deserialize<YrForecast>(
+                        forecastJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                    );
+
+                    if (forecast?.Properties?.Timeseries?.Length > 0)
+                    {
+                        _forecastTable.Value = BuildForecastTable(forecast.Properties.Timeseries);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Weather Plugin: No timeseries data in forecast response.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Weather Plugin: Forecast request failed with status: {forecastResponse.StatusCode}");
                 }
             }
             catch (Exception ex)
@@ -427,19 +454,17 @@ namespace InfoPanel.Extras
             var dataTable = new DataTable();
             dataTable.Columns.Add("Date", typeof(PluginText));    // Day of the forecast
             dataTable.Columns.Add("Weather", typeof(PluginText)); // Most frequent weather condition
-            dataTable.Columns.Add("Temp", typeof(PluginText));    // Max/min temperature (swapped order)
+            dataTable.Columns.Add("Temp", typeof(PluginText));    // Max/min temperature
             dataTable.Columns.Add("Precip", typeof(PluginSensor)); // Total precipitation
             dataTable.Columns.Add("Wind", typeof(PluginText));    // Average wind speed and direction
 
-            // Group timeseries into daily blocks starting from tomorrow
-            var now = DateTime.UtcNow.Date; // Current date
-            var startTime = now.AddDays(1); // Start from tomorrow
-            var endTime = startTime.AddDays(_forecastDays); // Configurable forecast length
+            var now = DateTime.UtcNow.Date;
+            var startTime = now.AddDays(1);
+            var endTime = startTime.AddDays(_forecastDays);
             var dailyBlocks = new Dictionary<DateTime, List<YrTimeseries>>();
 
             foreach (var ts in timeseries)
             {
-                // Safely parse timestamp, skipping invalid entries
                 if (ts == null || ts.Time == null || !DateTime.TryParse(ts.Time, out var tsTime))
                 {
                     Console.WriteLine($"Weather Plugin: Skipping invalid timeseries entry with null or unparsable time: {ts?.Time}");
@@ -459,11 +484,9 @@ namespace InfoPanel.Extras
                 var blockData = day.Value;
                 var row = dataTable.NewRow();
 
-                // Date: Format as "Day DD Mon" (e.g., "Mon 10 Mar")
                 string dateStr = day.Key.ToString("ddd dd MMM", CultureInfo.CreateSpecificCulture("en-US"));
                 row["Date"] = new PluginText("date", dateStr);
 
-                // Weather: Most frequent symbol_code from next_6_hours, stripped of "_day"/"_night"
                 var validSymbolCodes = blockData
                     .Where(t => t?.Data?.Next6Hours?.Summary?.SymbolCode != null)
                     .Select(t => t!.Data!.Next6Hours!.Summary!.SymbolCode!)
@@ -472,24 +495,20 @@ namespace InfoPanel.Extras
                     ? validSymbolCodes
                         .GroupBy(s => s)
                         .OrderByDescending(g => g.Count())
-                        .ThenBy(g => g.Key) // Tiebreaker: alphabetically first
+                        .ThenBy(g => g.Key)
                         .First()
                         .Key
-                        .Split('_')[0] // Strip "_day" or "_night"
+                        .Split('_')[0]
                     : "-";
-                Console.WriteLine($"Weather Plugin: Day {dateStr} - Valid next_6_hours symbol codes: {validSymbolCodes.Count}, Selected: {weatherStr}");
                 row["Weather"] = new PluginText("weather", weatherStr);
 
-                // Temperature: Max then Min (swapped order)
                 var temps = blockData.Select(t => t?.Data?.Instant?.Details?.AirTemperature ?? 0);
                 string tempStr = $"{temps.Max():F0}° / {temps.Min():F0}°";
                 row["Temp"] = new PluginText("temp", tempStr);
 
-                // Precipitation: Sum of next_6_hours amounts
                 float precip = (float)blockData.Sum(t => t?.Data?.Next6Hours?.Details?.PrecipitationAmount ?? 0);
                 row["Precip"] = new PluginSensor("precip", precip, "mm");
 
-                // Wind: Average speed and direction
                 var windSpeeds = blockData.Select(t => t?.Data?.Instant?.Details?.WindSpeed ?? 0).Average();
                 var windDirs = blockData.Select(t => t?.Data?.Instant?.Details?.WindFromDirection ?? 0).Average();
                 string windDirStr = GetWindDirection(windDirs);
@@ -501,33 +520,12 @@ namespace InfoPanel.Extras
             return dataTable;
         }
 
-        // GetWindDirection: Converts degrees to a cardinal direction (e.g., "N", "NE")
+        // GetWindDirection: Converts degrees to a cardinal direction
         private string GetWindDirection(double degrees)
         {
             string[] directions = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
             int index = (int)Math.Round(degrees / 45.0) % 8;
             return directions[index];
-        }
-
-        // ValidateIconUrl: Checks if an icon URL is valid via a HEAD request
-        private async Task<bool> ValidateIconUrl(string url)
-        {
-            if (url == "-") return false;
-
-            try
-            {
-                Console.WriteLine($"Weather Plugin: Validating icon URL: {url}");
-                var request = new HttpRequestMessage(HttpMethod.Head, url);
-                var response = await _httpClient.SendAsync(request, CancellationToken.None); // No cancellation here for simplicity
-                bool isValid = response.IsSuccessStatusCode;
-                Console.WriteLine($"Weather Plugin: Icon URL validation result: {isValid} (Status: {response.StatusCode})");
-                return isValid;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Weather Plugin: Error validating icon URL: {ex.Message}");
-                return false;
-            }
         }
 
         // CalculateFeelsLike: Computes wind chill if applicable
@@ -543,9 +541,17 @@ namespace InfoPanel.Extras
 
         // JSON model classes for deserialization
         private class NominatimResult { [JsonPropertyName("lat")] public string Lat { get; set; } = "0"; [JsonPropertyName("lon")] public string Lon { get; set; } = "0"; }
+        
+        // Nowcast models
+        private class YrNowcast { public YrProperties? Properties { get; set; } }
+        private class YrNowcastProperties { public YrNowcastTimeseries[]? Timeseries { get; set; } }
+        private class YrNowcastTimeseries { [JsonPropertyName("time")] public string? Time { get; set; } public YrData? Data { get; set; } }
+        
+        // Forecast models
         private class YrForecast { public YrProperties? Properties { get; set; } }
         private class YrProperties { public YrTimeseries[]? Timeseries { get; set; } }
         private class YrTimeseries { [JsonPropertyName("time")] public string? Time { get; set; } public YrData? Data { get; set; } }
+        
         private class YrData
         {
             public YrInstant? Instant { get; set; }
