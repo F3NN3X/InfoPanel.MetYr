@@ -7,7 +7,7 @@
 ### Features
 - Fetches current weather data using latitude/longitude derived from a user-defined location (e.g., "Oslo, Norway").
 - Displays current weather metrics including temperature, feels-like temperature, humidity, wind speed/direction, cloud cover, and precipitation.
-- 5-Day Forecast: Table summarizing daily weather, temperature range, precipitation, and wind.
+- X-Day Forecast: Table summarizing daily weather, temperature range, precipitation, and wind.
 - Configurable refresh interval via an INI file.
 - Geocoding: Automatically converts location names to coordinates using Nominatim.
 - Links to weather icons hosted on [MET Norway’s weathericons GitHub repo](https://github.com/metno/weathericons).
