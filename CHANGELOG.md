@@ -2,6 +2,28 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [1.5.1] - 2025-04-08
+
+### Added
+- Global testing readiness: Verified plugin functionality with diverse locations (e.g., Reykjavik, Tokyo, Miami) to ensure robust coordinate handling and forecast accuracy worldwide.
+
+### Fixed
+- Ensured INI `Latitude` and `Longitude` override geocoding when provided, fixing prior Nominatim override bug.
+- Added fallback to `locationforecast/2.0/complete` for current weather if `nowcast/2.0/complete` fails (e.g., outside Norway), ensuring data availability globally.
+- Fixed temperature unit display in forecast table to consistently show `°F` or `°C` based on `TemperatureUnit`, with proper Celsius-to-Fahrenheit conversion.
+
+## [1.5.0] - 2025-04-08
+
+### Added
+- Temperature unit support: `TemperatureUnit` in INI (`C` for Celsius, `F` for Fahrenheit), converting MET/Yr’s Celsius data accordingly.
+- Optional `Latitude` and `Longitude` in INI to specify exact coordinates, overriding geocoding from `Location` if provided.
+
+## [1.5.0] - 2025-04-08
+
+### Added
+- Support for temperature units (`C` for Celsius, `F` for Fahrenheit) via `TemperatureUnit` in INI file. Converts MET/Yr’s Celsius data to Fahrenheit when `F` is set.
+- Optional `Latitude` and `Longitude` fields in INI file to specify exact coordinates, overriding geocoding from `Location` if provided.
+
 ## [1.4.2] - 2025-03-13
 
 ### Changed
