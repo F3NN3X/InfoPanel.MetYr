@@ -39,12 +39,12 @@ Example output (Fahrenheit):
 ### Installation
 1. Download the latest release from GitHub.
 2. Import into InfoPanel via the "Import Plugin" feature.
-3. Edit `YrWeatherPlugin.ini` with your desired location and settings.
+3. Edit `InfoPanel.MetYr.dll.ini` with your desired location and settings.
 
 ### Installation from Source
 1. Clone or download this repository.
 2. Build the project in a .NET environment.
-3. Copy `YrWeatherPlugin.dll` and `YrWeatherPlugin.ini` to your InfoPanel plugins directory.
+3. Copy compiled files to your InfoPanel plugins directory.
 
 ### Usage
 - Launch InfoPanel with the plugin loaded.
@@ -53,7 +53,7 @@ Example output (Fahrenheit):
 - Weather icons are provided as URLs for rendering (if supported by InfoPanel).
 
 ### Configuration
-Edit `YrWeatherPlugin.ini`:
+Edit `InfoPanel.MetYr.dll.ini`:
 ```ini
 [Yr Weather Plugin]
 Location = Newcastle, New South Wales (Australia)
