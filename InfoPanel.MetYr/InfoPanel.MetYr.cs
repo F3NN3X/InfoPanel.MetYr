@@ -12,11 +12,12 @@ using System.Data;
 
 /*
  * Plugin: InfoPanel.MetYr
- * Version: 2.0.0
+ * Version: 2.0.1
  * Author: F3NN3X
  * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions via nowcast (temperature, wind, precipitation, etc.) and a configurable forecast table via locationforecast. Falls back to locationforecast for current data if nowcast unavailable. Supports configurable locations (name or lat/long), temperature units (C/F), date formats, UTC offset adjustment, and custom icon URLs via an INI file, with automatic geocoding using Nominatim when lat/long not provided. Updates hourly by default, with robust null safety and detailed logging. Supports both PNG and SVG icons with standardized naming.
  * Changelog (Recent):
- *   - v2.0.0 (Jun 02, 2025): Consolidated changes: fixed compilation errors (string interpolation, nested class accessibility, JsonPropertyName attribute, CloudAreaFraction type), added null reference checks, removed unreferenced labels, updated icon mapping to use custom hyphenated icon names (e.g., clear-day, rainy-1-day) based on Yr symbol_code with precipitation intensity logic, corrected duplicate class definitions and property types, ensured hyphenated icon file names (e.g., fair-day.svg), changed wind direction labels to abbreviations (N, NE, etc.), and moved plugin info text below using statements.
+ *   - v2.0.1 (Jun 02, 2025): Improved _weatherDesc formatting by mapping symbolCode to human-readable descriptions (e.g., "lightrain" to "Light Rain"), removing day/night suffixes, and applying title case.
+ *   - v2.0.0 (Jun 02, 2025): Consolidated changes: fixed compilation errors, added null reference checks, updated icon mapping, corrected duplicate class definitions, ensured hyphenated icon file names, changed wind direction labels to abbreviations, and moved plugin info text below using statements.
  * Note: Full history in CHANGELOG.md. Requires internet access for API calls.
  */
 
@@ -72,7 +73,7 @@ namespace InfoPanel.MetYr
         {
             _httpClient.DefaultRequestHeaders.Add(
                 "User-Agent",
-                "InfoPanel-YrWeatherPlugin/2.0.0 (contact@example.com)"
+                "InfoPanel-YrWeatherPlugin/2.0.1 (contact@example.com)"
             );
             _temp = new PluginSensor("temp", "Temperature", 0, "°C");
             _feelsLike = new PluginSensor("feels_like", "Feels Like", 0, "°C");
@@ -442,6 +443,53 @@ namespace InfoPanel.MetYr
             };
         }
 
+        private string MapYrSymbolToDescription(string? symbolCode, double? precipitationAmount)
+        {
+            if (string.IsNullOrEmpty(symbolCode))
+                return "Cloudy";
+
+            double precip = precipitationAmount ?? 0.0;
+            string baseCode = symbolCode.ToLower().Replace("_day", "").Replace("_night", "");
+
+            string description = baseCode switch
+            {
+                "clearsky" => "Clear Sky",
+                "fair" => "Mostly Clear",
+                "partlycloudy" => "Partly Cloudy",
+                "cloudy" => "Cloudy",
+                "fog" => "Fog",
+                "lightrain" => precip < 2.5 ? "Light Rain" : "Moderate Rain",
+                "lightrainshowers" => precip < 2.5 ? "Light Rain Showers" : "Moderate Rain Showers",
+                "rain" => precip < 7.5 ? "Moderate Rain" : "Heavy Rain",
+                "rainshowers" => precip < 7.5 ? "Moderate Rain Showers" : "Heavy Rain Showers",
+                "heavyrain" => "Heavy Rain",
+                "heavyrainshowers" => "Heavy Rain Showers",
+                "lightsnow" => precip < 2.5 ? "Light Snow" : "Moderate Snow",
+                "lightsnowshowers" => precip < 2.5 ? "Light Snow Showers" : "Moderate Snow Showers",
+                "snow" => precip < 7.5 ? "Moderate Snow" : "Heavy Snow",
+                "snowshowers" => precip < 7.5 ? "Moderate Snow Showers" : "Heavy Snow Showers",
+                "heavysnow" => "Heavy Snow",
+                "heavysnowshowers" => "Heavy Snow Showers",
+                "sleet" => "Sleet",
+                "sleetshowers" => "Sleet Showers",
+                "lightsleet" => "Light Sleet",
+                "heavysleet" => "Heavy Sleet",
+                "rainandthunder" => "Rain with Thunder",
+                "lightrainandthunder" => "Light Rain with Thunder",
+                "heavyrainandthunder" => "Heavy Rain with Thunder",
+                "snowandthunder" => "Snow with Thunder",
+                "lightsnowandthunder" => "Light Snow with Thunder",
+                "heavysnowandthunder" => "Heavy Snow with Thunder",
+                "tropicalstorm" => "Tropical Storm",
+                "hurricane" => "Hurricane",
+                _ when baseCode.Contains("wind") => "Windy",
+                _ => "Cloudy" // Default fallback
+            };
+
+            // Apply title case
+            return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(description.ToLower());
+        }
+
         private async Task GetWeather(CancellationToken cancellationToken)
         {
             try
@@ -516,11 +564,11 @@ namespace InfoPanel.MetYr
 
                     _name.Value = _location ?? $"Lat:{_latitude.ToString(CultureInfo.InvariantCulture)}, Lon:{_longitude.ToString(CultureInfo.InvariantCulture)}";
                     _weather.Value = next1Hour?.summary?.symbolCode?.Split('_')[0] ?? "-";
-                    _weatherDesc.Value = next1Hour?.summary?.symbolCode?.Replace("_", " ") ?? "-";
+                    _weatherDesc.Value = MapYrSymbolToDescription(next1Hour?.summary?.symbolCode, next1Hour?.details?.precipitationAmount) ?? "-";
 
                     string mappedIcon = MapYrSymbolToIcon(next1Hour?.summary?.symbolCode, next1Hour?.details?.precipitationAmount);
                     _weatherIcon.Value = mappedIcon;
-                    Console.WriteLine($"Weather Plugin: Mapped symbol '{next1Hour?.summary?.symbolCode}' to icon: {mappedIcon}");
+                    Console.WriteLine($"Weather Plugin: Mapped symbol '{next1Hour?.summary?.symbolCode}' to icon: {mappedIcon}, description: {_weatherDesc.Value}");
 
                     if (!string.IsNullOrEmpty(_iconUrl))
                     {
@@ -582,7 +630,7 @@ namespace InfoPanel.MetYr
                     _rain.Value = (float)(next1Hour?.details?.precipitationAmount ?? 0);
                     _snow.Value = next1Hour?.details?.precipitationCategory == "snow" ? (float)(next1Hour.details.precipitationAmount) : 0;
 
-                    Console.WriteLine($"Weather Plugin: Set data - Temp: {_temp.Value}{_temp.Unit}, Weather: {_weather.Value}, Icon: {_weatherIcon.Value}");
+                    Console.WriteLine($"Weather Plugin: Set data - Temp: {_temp.Value}{_temp.Unit}, Weather: {_weather.Value}, Description: {_weatherDesc.Value}, Icon: {_weatherIcon.Value}");
                 }
                 else
                     Console.WriteLine("No valid timeseries data.");
@@ -638,89 +686,89 @@ namespace InfoPanel.MetYr
             Console.WriteLine($"Weather Plugin: Using OpenWeatherMap icon: {_weatherIconUrl.Value}");
         }
 
-private DataTable BuildForecastTable(YrTimeseries[] timeseries)
-{
-    var dataTable = new DataTable();
-    try
-    {
-        dataTable.Columns.Add("Date", typeof(PluginText));
-        dataTable.Columns.Add("Weather", typeof(PluginText));
-        dataTable.Columns.Add("Temp", typeof(PluginText)); // Changed to PluginText
-        dataTable.Columns.Add("Precip", typeof(PluginSensor)); // Changed to PluginSensor
-        dataTable.Columns.Add("Wind", typeof(PluginText)); // Changed to PluginText
-
-        var now = DateTime.UtcNow;
-        var startTime = now.AddDays(1).Date;
-        var endTime = startTime.AddDays(_forecastDays);
-        var dailyBlocks = new Dictionary<DateTime, List<YrTimeseries>>();
-
-        foreach (var ts in timeseries)
+        private DataTable BuildForecastTable(YrTimeseries[] timeseries)
         {
-            if (ts?.time == null || !DateTime.TryParse(ts.time, out var tsTime))
+            var dataTable = new DataTable();
+            try
             {
-                Console.WriteLine($"Weather Plugin: Skipping invalid time: {ts?.time}");
-                continue;
+                dataTable.Columns.Add("Date", typeof(PluginText));
+                dataTable.Columns.Add("Weather", typeof(PluginText));
+                dataTable.Columns.Add("Temp", typeof(PluginText));
+                dataTable.Columns.Add("Precip", typeof(PluginSensor));
+                dataTable.Columns.Add("Wind", typeof(PluginText));
+
+                var now = DateTime.UtcNow;
+                var startTime = now.AddDays(1).Date;
+                var endTime = startTime.AddDays(_forecastDays);
+                var dailyBlocks = new Dictionary<DateTime, List<YrTimeseries>>();
+
+                foreach (var ts in timeseries)
+                {
+                    if (ts?.time == null || !DateTime.TryParse(ts.time, out var tsTime))
+                    {
+                        Console.WriteLine($"Weather Plugin: Skipping invalid time: {ts?.time}");
+                        continue;
+                    }
+                    var tsDate = tsTime.Date;
+                    if (tsDate >= startTime && tsDate < endTime)
+                    {
+                        if (!dailyBlocks.ContainsKey(tsDate))
+                            dailyBlocks[tsDate] = new List<YrTimeseries>();
+                        dailyBlocks[tsDate].Add(ts);
+                    }
+                }
+
+                foreach (var day in dailyBlocks.OrderBy(d => d.Key))
+                {
+                    var blockData = day.Value;
+                    var row = dataTable.NewRow();
+
+                    string dateStr = day.Key.ToString("dddd dd MMM", CultureInfo.InvariantCulture);
+                    row["Date"] = new PluginText($"date_{day.Key:yyyyMMdd}", dateStr);
+
+                    var validSymbolCodes = blockData
+                        .Where(t => t?.data?.next6Hours?.summary?.symbolCode != null)
+                        .Select(t => new { SymbolCode = t!.data!.next6Hours!.summary!.symbolCode!, Precip = t!.data!.next6Hours!.details?.precipitationAmount ?? 0 })
+                        .ToList();
+                    string? weatherStr = validSymbolCodes.Any()
+                        ? validSymbolCodes
+                            .GroupBy(x => x.SymbolCode)
+                            .OrderByDescending(g => g.Count())
+                            .ThenByDescending(g => g.Sum(x => x.Precip))
+                            .First()
+                            .Key
+                            .Split('_')[0]
+                        : null;
+
+                    string iconName = MapYrSymbolToIcon(weatherStr, validSymbolCodes.Any() ? validSymbolCodes.Max(x => x.Precip) : 0);
+                    row["Weather"] = new PluginText($"weather_{day.Key:yyyyMMdd}", iconName ?? "-");
+
+                    var tempsC = blockData.Select(t => t?.data?.instant?.details?.airTemperature ?? 0).ToList();
+                    string tempStr = _temperatureUnit == "F"
+                        ? $"{ConvertCelsius(tempsC.Max()):F0} °F / {ConvertCelsius(tempsC.Min()):F0} °F"
+                        : $"{tempsC.Max():F0} °C / {tempsC.Min():F0} °C";
+                    row["Temp"] = new PluginText($"temp_{day.Key:yyyyMMdd}", tempStr);
+
+                    float precip = (float)blockData.Sum(t => t?.data?.next6Hours?.details?.precipitationAmount ?? 0);
+                    row["Precip"] = new PluginSensor($"precip_{day.Key:yyyyMMdd}", "Precip", precip, "mm");
+
+                    var windSpeeds = blockData.Select(t => t?.data?.instant?.details?.windSpeed ?? 0).Average();
+                    var windDir = blockData.Select(t => t?.data?.instant?.details?.windFromDirection ?? 0).Average();
+                    string windDirStr = GetWindDirection(windDir);
+                    string windStr = $"{windSpeeds:F1} m/s {windDirStr}";
+                    row["Wind"] = new PluginText($"wind_{day.Key:yyyyMMdd}", windStr);
+
+                    dataTable.Rows.Add(row);
+                    Console.WriteLine($"Weather Plugin: Added forecast row - Date: {dateStr}, Weather: {iconName}, Temp: {tempStr}, Precip: {precip:F1} mm, Wind: {windStr}");
+                }
             }
-            var tsDate = tsTime.Date;
-            if (tsDate >= startTime && tsDate < endTime)
+            catch (Exception ex)
             {
-                if (!dailyBlocks.ContainsKey(tsDate))
-                    dailyBlocks[tsDate] = new List<YrTimeseries>();
-                dailyBlocks[tsDate].Add(ts);
+                Console.WriteLine($"Error building forecast table: {ex.Message}");
             }
+
+            return dataTable;
         }
-
-        foreach (var day in dailyBlocks.OrderBy(d => d.Key))
-        {
-            var blockData = day.Value;
-            var row = dataTable.NewRow();
-
-            string dateStr = day.Key.ToString("dddd dd MMM", CultureInfo.InvariantCulture);
-            row["Date"] = new PluginText($"date_{day.Key:yyyyMMdd}", dateStr);
-
-            var validSymbolCodes = blockData
-                .Where(t => t?.data?.next6Hours?.summary?.symbolCode != null)
-                .Select(t => new { SymbolCode = t!.data!.next6Hours!.summary!.symbolCode!, Precip = t!.data!.next6Hours!.details?.precipitationAmount ?? 0 })
-                .ToList();
-            string? weatherStr = validSymbolCodes.Any()
-                ? validSymbolCodes
-                    .GroupBy(x => x.SymbolCode)
-                    .OrderByDescending(g => g.Count())
-                    .ThenByDescending(g => g.Sum(x => x.Precip))
-                    .First()
-                    .Key
-                    .Split('_')[0]
-                : null;
-
-            string iconName = MapYrSymbolToIcon(weatherStr, validSymbolCodes.Any() ? validSymbolCodes.Max(x => x.Precip) : 0);
-            row["Weather"] = new PluginText($"weather_{day.Key:yyyyMMdd}", iconName ?? "-");
-
-            var tempsC = blockData.Select(t => t?.data?.instant?.details?.airTemperature ?? 0).ToList();
-            string tempStr = _temperatureUnit == "F"
-                ? $"{ConvertCelsius(tempsC.Max()):F0} °F / {ConvertCelsius(tempsC.Min()):F0} °F"
-                : $"{tempsC.Max():F0} °C / {tempsC.Min():F0} °C";
-            row["Temp"] = new PluginText($"temp_{day.Key:yyyyMMdd}", tempStr);
-
-            float precip = (float)blockData.Sum(t => t?.data?.next6Hours?.details?.precipitationAmount ?? 0);
-            row["Precip"] = new PluginSensor($"precip_{day.Key:yyyyMMdd}", "Precip", precip, "mm");
-
-            var windSpeeds = blockData.Select(t => t?.data?.instant?.details?.windSpeed ?? 0).Average();
-            var windDir = blockData.Select(t => t?.data?.instant?.details?.windFromDirection ?? 0).Average();
-            string windDirStr = GetWindDirection(windDir);
-            string windStr = $"{windSpeeds:F1} m/s {windDirStr}";
-            row["Wind"] = new PluginText($"wind_{day.Key:yyyyMMdd}", windStr);
-
-            dataTable.Rows.Add(row);
-            Console.WriteLine($"Weather Plugin: Added forecast row - Date: {dateStr}, Weather: {iconName}, Temp: {tempStr}, Precip: {precip:F1} mm, Wind: {windStr}");
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error building forecast table: {ex.Message}");
-    }
-
-    return dataTable;
-}
 
         private string GetWindDirection(double degrees)
         {
