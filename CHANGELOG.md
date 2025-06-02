@@ -2,6 +2,23 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [2.0.0] - 2025-06-02
+
+### Added
+- **Custom Icon Support**: Added `IconUrl` INI setting to fetch custom PNG/SVG icons from a user-defined URL (e.g., `https://raw.githubusercontent.com/Makin-Things/weather-icons/main/original/static/`), with fallback to OpenWeatherMap icons if unavailable.
+- **Icon Mapping**: Implemented mapping of MET/Yr `symbol_code` to hyphenated icon names (e.g., `clear-day`, `rainy-1-day`) with precipitation-based intensity logic (e.g., `<2.5 mm/h` for `rainy-1`).
+- **Wind Direction Abbreviations**: Changed wind direction labels to abbreviated forms (`N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`) in forecast table output.
+
+### Changed
+- **Plugin Info Placement**: Moved plugin information comment block below `using` statements in `YrWeatherPlugin.cs` for better code organization.
+- **Versioning**: Consolidated all recent changes under version 2.0.0 for a unified release.
+
+### Fixed
+- **Compilation Errors**: Resolved multiple syntax issues, including string interpolation in `SetCoordinatesFromLocation`, nested class accessibility, `JsonPropertyName` attribute syntax, and `CloudAreaFraction` type declaration.
+- **Null Safety**: Added null checks in geocoding logic to prevent `NullReferenceException` when parsing Nominatim results.
+- **Unreferenced Labels**: Removed stray labels causing parsing errors.
+- **Duplicate Class Definitions**: Corrected redundant class definitions and ensured consistent property types.
+
 ## [1.5.1] - 2025-04-08
 
 ### Added
