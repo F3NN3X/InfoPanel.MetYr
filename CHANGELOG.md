@@ -5,7 +5,7 @@ All notable changes to the YrWeatherPlugin will be documented in this file, foll
 ## [2.0.0] - 2025-06-02
 
 ### Added
-- **Custom Icon Support**: Added `IconUrl` INI setting to fetch custom PNG/SVG icons from a user-defined URL (e.g., `https://raw.githubusercontent.com/Makin-Things/weather-icons/main/original/static/`), with fallback to OpenWeatherMap icons if unavailable.
+- **Custom Icon Support**: Added `IconUrl` INI setting to fetch custom PNG/SVG icons from a user-defined URL (e.g., `https://github.com/Makin-Things/weather-icons/main/original/static/`), with fallback to OpenWeatherMap icons if unavailable.
 - **Icon Mapping**: Implemented mapping of MET/Yr `symbol_code` to hyphenated icon names (e.g., `clear-day`, `rainy-1-day`) with precipitation-based intensity logic (e.g., `<2.5 mm/h` for `rainy-1`).
 - **Wind Direction Abbreviations**: Changed wind direction labels to abbreviated forms (`N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`) in forecast table output.
 
