@@ -65,7 +65,7 @@ DateTimeFormat = yyyy-MM-dd HH:mm
 UtcOffsetHours = 10
 ForecastDays = 7
 TemperatureUnit = F
-IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/main/original/static/
+IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/heads/main/static/
 ```
 - **Location**: City/region (used for geocoding if lat/long omitted).
 - **Latitude/Longitude**: Optional exact coordinates (overrides geocoding).
@@ -106,6 +106,6 @@ For `IconUrl=https://example.com/icons/`, the plugin will try:
 **Example Icon Source**:
 Use the [weather-icons](https://github.com/Makin-Things/weather-icons) repository:
 ```ini
-IconUrl = https://github.com/Makin-Things/weather-icons/tree/main/static/
+IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/heads/main/static/
 ```
 This provides SVG and PNG icons matching the supported names.
