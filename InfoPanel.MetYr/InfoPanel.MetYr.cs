@@ -12,10 +12,11 @@ using System.Data;
 
 /*
  * Plugin: InfoPanel.MetYr
- * Version: 2.0.1
+ * Version: 2.0.2
  * Author: F3NN3X
  * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions via nowcast (temperature, wind, precipitation, etc.) and a configurable forecast table via locationforecast. Falls back to locationforecast for current data if nowcast unavailable. Supports configurable locations (name or lat/long), temperature units (C/F), date formats, UTC offset adjustment, and custom icon URLs via an INI file, with automatic geocoding using Nominatim when lat/long not provided. Updates hourly by default, with robust null safety and detailed logging. Supports both PNG and SVG icons with standardized naming.
  * Changelog (Recent):
+ *   - v2.0.2 (Jun 02, 2025): Updated forecast table's Weather column to use human-readable descriptions from MapYrSymbolToDescription (e.g., "Moderate Rain" instead of "rainy-2").
  *   - v2.0.1 (Jun 02, 2025): Improved _weatherDesc formatting by mapping symbolCode to human-readable descriptions (e.g., "lightrain" to "Light Rain"), removing day/night suffixes, and applying title case.
  *   - v2.0.0 (Jun 02, 2025): Consolidated changes: fixed compilation errors, added null reference checks, updated icon mapping, corrected duplicate class definitions, ensured hyphenated icon file names, changed wind direction labels to abbreviations, and moved plugin info text below using statements.
  * Note: Full history in CHANGELOG.md. Requires internet access for API calls.
@@ -73,7 +74,7 @@ namespace InfoPanel.MetYr
         {
             _httpClient.DefaultRequestHeaders.Add(
                 "User-Agent",
-                "InfoPanel-YrWeatherPlugin/2.0.1 (contact@example.com)"
+                "InfoPanel-YrWeatherPlugin/2.0.2 (contact@example.com)"
             );
             _temp = new PluginSensor("temp", "Temperature", 0, "°C");
             _feelsLike = new PluginSensor("feels_like", "Feels Like", 0, "°C");
@@ -737,11 +738,10 @@ namespace InfoPanel.MetYr
                             .ThenByDescending(g => g.Sum(x => x.Precip))
                             .First()
                             .Key
-                            .Split('_')[0]
                         : null;
 
-                    string iconName = MapYrSymbolToIcon(weatherStr, validSymbolCodes.Any() ? validSymbolCodes.Max(x => x.Precip) : 0);
-                    row["Weather"] = new PluginText($"weather_{day.Key:yyyyMMdd}", iconName ?? "-");
+                    string description = MapYrSymbolToDescription(weatherStr, validSymbolCodes.Any() ? validSymbolCodes.Max(x => x.Precip) : 0);
+                    row["Weather"] = new PluginText($"weather_{day.Key:yyyyMMdd}", description ?? "-");
 
                     var tempsC = blockData.Select(t => t?.data?.instant?.details?.airTemperature ?? 0).ToList();
                     string tempStr = _temperatureUnit == "F"
@@ -759,7 +759,7 @@ namespace InfoPanel.MetYr
                     row["Wind"] = new PluginText($"wind_{day.Key:yyyyMMdd}", windStr);
 
                     dataTable.Rows.Add(row);
-                    Console.WriteLine($"Weather Plugin: Added forecast row - Date: {dateStr}, Weather: {iconName}, Temp: {tempStr}, Precip: {precip:F1} mm, Wind: {windStr}");
+                    Console.WriteLine($"Weather Plugin: Added forecast row - Date: {dateStr}, Weather: {description}, Temp: {tempStr}, Precip: {precip:F1} mm, Wind: {windStr}");
                 }
             }
             catch (Exception ex)

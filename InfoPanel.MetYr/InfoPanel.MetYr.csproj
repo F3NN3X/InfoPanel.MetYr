@@ -16,7 +16,7 @@
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
     <!-- Limit satellite resources to English only -->
     <SatelliteResourceLanguages>en-US</SatelliteResourceLanguages>
-    <Version>2.0.1</Version>
+    <Version>2.0.2</Version>
     <!-- Customize output path for Release builds -->
     <OutputPath Condition="'$(Configuration)' == 'Release'">bin\Release\net8.0-windows\InfoPanel.MetYr-v$(Version)\InfoPanel.MetYr</OutputPath>
     <!-- Prevent appending TargetFramework to OutputPath -->
