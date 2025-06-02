@@ -638,87 +638,89 @@ namespace InfoPanel.MetYr
             Console.WriteLine($"Weather Plugin: Using OpenWeatherMap icon: {_weatherIconUrl.Value}");
         }
 
-        private DataTable BuildForecastTable(YrTimeseries[] timeseries)
+private DataTable BuildForecastTable(YrTimeseries[] timeseries)
+{
+    var dataTable = new DataTable();
+    try
+    {
+        dataTable.Columns.Add("Date", typeof(PluginText));
+        dataTable.Columns.Add("Weather", typeof(PluginText));
+        dataTable.Columns.Add("Temp", typeof(PluginText)); // Changed to PluginText
+        dataTable.Columns.Add("Precip", typeof(PluginSensor)); // Changed to PluginSensor
+        dataTable.Columns.Add("Wind", typeof(PluginText)); // Changed to PluginText
+
+        var now = DateTime.UtcNow;
+        var startTime = now.AddDays(1).Date;
+        var endTime = startTime.AddDays(_forecastDays);
+        var dailyBlocks = new Dictionary<DateTime, List<YrTimeseries>>();
+
+        foreach (var ts in timeseries)
         {
-            var dataTable = new DataTable();
-            try
+            if (ts?.time == null || !DateTime.TryParse(ts.time, out var tsTime))
             {
-                dataTable.Columns.Add("Date", typeof(PluginText));
-                dataTable.Columns.Add("Weather", typeof(PluginText));
-                dataTable.Columns.Add("Temp", typeof(string));
-                dataTable.Columns.Add("Precip", typeof(float));
-                dataTable.Columns.Add("Wind", typeof(string));
-
-                var now = DateTime.UtcNow;
-                var startTime = now.AddDays(1).Date;
-                var endTime = startTime.AddDays(_forecastDays);
-                var dailyBlocks = new Dictionary<DateTime, List<YrTimeseries>>();
-
-                foreach (var ts in timeseries)
-                {
-                    if (ts?.time == null || !DateTime.TryParse(ts.time, out var tsTime))
-                    {
-                        Console.WriteLine($"Weather Plugin: Skipping invalid time: {ts?.time}");
-                        continue;
-                    }
-                    var tsDate = tsTime.Date;
-                    if (tsDate >= startTime && tsDate < endTime)
-                    {
-                        if (!dailyBlocks.ContainsKey(tsDate))
-                            dailyBlocks[tsDate] = new List<YrTimeseries>();
-                        dailyBlocks[tsDate].Add(ts);
-                    }
-                }
-
-                foreach (var day in dailyBlocks.OrderBy(d => d.Key))
-                {
-                    var blockData = day.Value;
-                    var row = dataTable.NewRow();
-
-                    string dateStr = day.Key.ToString("dddd dd MMM", CultureInfo.InvariantCulture);
-                    row["Date"] = new PluginText("date", dateStr);
-
-                    var validSymbolCodes = blockData
-                        .Where(t => t?.data?.next6Hours?.summary?.symbolCode != null)
-                        .Select(t => new { SymbolCode = t!.data!.next6Hours!.summary!.symbolCode!, Precip = t!.data!.next6Hours!.details?.precipitationAmount ?? 0 })
-                        .ToList();
-                    string? weatherStr = validSymbolCodes.Any()
-                        ? validSymbolCodes
-                            .GroupBy(x => x.SymbolCode)
-                            .OrderByDescending(g => g.Count())
-                            .ThenByDescending(g => g.Sum(x => x.Precip))
-                            .First()
-                            .Key
-                            .Split('_')[0]
-                        : null;
-
-                    string iconName = MapYrSymbolToIcon(weatherStr, validSymbolCodes.Any() ? validSymbolCodes.Max(x => x.Precip) : 0);
-                    row["Weather"] = new PluginText("weather", iconName ?? "-");
-
-                    var tempsC = blockData.Select(t => t?.data?.instant?.details?.airTemperature ?? 0).ToList();
-                    string tempStr = _temperatureUnit == "F"
-                        ? $"{ConvertCelsius(tempsC.Max()):F0} °F / {ConvertCelsius(tempsC.Min()):F0} °F"
-                        : $"{tempsC.Max():F0} °C / {tempsC.Min():F0} °C";
-                    row["Temp"] = tempStr;
-
-                    float precip = (float)blockData.Sum(t => t?.data?.next6Hours?.details?.precipitationAmount ?? 0);
-                    row["Precip"] = precip;
-
-                    var windSpeeds = blockData.Select(t => t?.data?.instant?.details?.windSpeed ?? 0).Average();
-                    var windDir = blockData.Select(t => t?.data?.instant?.details?.windFromDirection ?? 0).Average();
-                    string windDirStr = GetWindDirection(windDir);
-                    row["Wind"] = $"{windSpeeds:F1} m/s {windDirStr}";
-
-                    dataTable.Rows.Add(row);
-                }
+                Console.WriteLine($"Weather Plugin: Skipping invalid time: {ts?.time}");
+                continue;
             }
-            catch (Exception ex)
+            var tsDate = tsTime.Date;
+            if (tsDate >= startTime && tsDate < endTime)
             {
-                Console.WriteLine($"Error building forecast table: {ex.Message}");
+                if (!dailyBlocks.ContainsKey(tsDate))
+                    dailyBlocks[tsDate] = new List<YrTimeseries>();
+                dailyBlocks[tsDate].Add(ts);
             }
-
-            return dataTable;
         }
+
+        foreach (var day in dailyBlocks.OrderBy(d => d.Key))
+        {
+            var blockData = day.Value;
+            var row = dataTable.NewRow();
+
+            string dateStr = day.Key.ToString("dddd dd MMM", CultureInfo.InvariantCulture);
+            row["Date"] = new PluginText($"date_{day.Key:yyyyMMdd}", dateStr);
+
+            var validSymbolCodes = blockData
+                .Where(t => t?.data?.next6Hours?.summary?.symbolCode != null)
+                .Select(t => new { SymbolCode = t!.data!.next6Hours!.summary!.symbolCode!, Precip = t!.data!.next6Hours!.details?.precipitationAmount ?? 0 })
+                .ToList();
+            string? weatherStr = validSymbolCodes.Any()
+                ? validSymbolCodes
+                    .GroupBy(x => x.SymbolCode)
+                    .OrderByDescending(g => g.Count())
+                    .ThenByDescending(g => g.Sum(x => x.Precip))
+                    .First()
+                    .Key
+                    .Split('_')[0]
+                : null;
+
+            string iconName = MapYrSymbolToIcon(weatherStr, validSymbolCodes.Any() ? validSymbolCodes.Max(x => x.Precip) : 0);
+            row["Weather"] = new PluginText($"weather_{day.Key:yyyyMMdd}", iconName ?? "-");
+
+            var tempsC = blockData.Select(t => t?.data?.instant?.details?.airTemperature ?? 0).ToList();
+            string tempStr = _temperatureUnit == "F"
+                ? $"{ConvertCelsius(tempsC.Max()):F0} °F / {ConvertCelsius(tempsC.Min()):F0} °F"
+                : $"{tempsC.Max():F0} °C / {tempsC.Min():F0} °C";
+            row["Temp"] = new PluginText($"temp_{day.Key:yyyyMMdd}", tempStr);
+
+            float precip = (float)blockData.Sum(t => t?.data?.next6Hours?.details?.precipitationAmount ?? 0);
+            row["Precip"] = new PluginSensor($"precip_{day.Key:yyyyMMdd}", "Precip", precip, "mm");
+
+            var windSpeeds = blockData.Select(t => t?.data?.instant?.details?.windSpeed ?? 0).Average();
+            var windDir = blockData.Select(t => t?.data?.instant?.details?.windFromDirection ?? 0).Average();
+            string windDirStr = GetWindDirection(windDir);
+            string windStr = $"{windSpeeds:F1} m/s {windDirStr}";
+            row["Wind"] = new PluginText($"wind_{day.Key:yyyyMMdd}", windStr);
+
+            dataTable.Rows.Add(row);
+            Console.WriteLine($"Weather Plugin: Added forecast row - Date: {dateStr}, Weather: {iconName}, Temp: {tempStr}, Precip: {precip:F1} mm, Wind: {windStr}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error building forecast table: {ex.Message}");
+    }
+
+    return dataTable;
+}
 
         private string GetWindDirection(double degrees)
         {
