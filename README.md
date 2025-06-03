@@ -2,7 +2,7 @@
 
 ## Overview
 
-**YrWeatherPlugin** is a plugin for the InfoPanel framework that retrieves weather data from the [MET Norway Weather API](https://api.met.no/). It provides current weather conditions via the `nowcast/2.0/complete` endpoint (falling back to `locationforecast/2.0/complete` outside supported regions) and a configurable multi-day forecast table. Weather icons are sourced from [OpenWeatherMap](https://openweathermap.org/) by default, with support for custom icon sets via a configurable URL.
+**YrWeatherPlugin** is a plugin for the InfoPanel app that retrieves weather data from the [MET Norway Weather API](https://api.met.no/). It provides current weather conditions via the `nowcast/2.0/complete` endpoint (falling back to `locationforecast/2.0/complete` outside supported regions) and a configurable multi-day forecast table. Weather icons are sourced from [OpenWeatherMap](https://openweathermap.org/) by default, with support for custom icon sets via a configurable URL.
 
 ## Features
 - Fetches current weather data using user-defined latitude/longitude or geocoded location (e.g., "Newcastle, New South Wales (Australia)").
@@ -32,7 +32,9 @@ Example output (Fahrenheit):
 | Sat 12 Apr | fair         | 73°F / 67°F | 0.0 mm | 2.5 m/s NW |
 
 ## Requirements
-- InfoPanel framework (latest version recommended).
+- InfoPanel app (latest version recommended).
+
+## Requirements to compile
 - .NET runtime compatible with InfoPanel.
 - Internet connection for MET Norway API, Nominatim geocoding, and icon fetching.
 
