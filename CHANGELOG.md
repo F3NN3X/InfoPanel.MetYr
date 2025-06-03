@@ -2,6 +2,25 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [2.5.0] - 2025-06-03
+
+### Added
+- **Constant Values**: Added named constants for configuration defaults, API endpoints, weather thresholds, etc. for better maintainability and readability.
+- **Method Breakdown**: Split large methods into smaller focused ones (e.g., separated `GetWeather` into `FetchCurrentWeatherData` and `UpdateForecastTable`).
+- **Enhanced Null Safety**: Added comprehensive null checks and proper handling of nullable values throughout the code.
+
+### Changed
+- **Improved Icon Mapping**: Enhanced weather icon mapping with boolean flags for precipitation intensity and better pattern matching.
+- **Asynchronous Operations**: Made icon URL validation fully asynchronous and improved async flow control.
+- **Error Handling**: Added more detailed error messages and robust exception handling with appropriate fallbacks.
+- **Wind Direction Calculation**: Improved the wind direction algorithm with proper normalization and clearer comments.
+
+### Fixed
+- **Null Reference Exceptions**: Fixed potential null reference exceptions when handling API responses.
+- **Precipitation Handling**: Enhanced precipitation amount handling with proper nullable value checks.
+- **Compiler Warnings**: Resolved all compiler warnings related to nullable reference types.
+- **Type Safety**: Improved type safety throughout the codebase with proper null-conditional operators.
+
 ## [2.0.2] - 2025-06-02
 
 ### Changed
