@@ -2,6 +2,11 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [2.5.1] - 2025-06-03
+
+### Added
+- **Custom Forecast Date Format**: Added `ForecastDateFormat` INI setting to allow customization of how dates appear in the forecast table. Users can now specify date formats like "ddd d MMM" (Wed 8 Jun), "dddd" (Wednesday), "dd/MM" (08/06), or any valid C# date format string.
+
 ## [2.5.0] - 2025-06-03
 
 ### Added

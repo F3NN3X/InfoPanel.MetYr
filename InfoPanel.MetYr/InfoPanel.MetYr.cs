@@ -12,10 +12,11 @@ using System.Data;
 
 /*
  * Plugin: InfoPanel.MetYr
- * Version: 2.5.0
+ * Version: 2.5.1
  * Author: F3NN3X
  * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions via nowcast (temperature, wind, precipitation, etc.) and a configurable forecast table via locationforecast. Falls back to locationforecast for current data if nowcast unavailable. Supports configurable locations (name or lat/long), temperature units (C/F), date formats, UTC offset adjustment, and custom icon URLs via an INI file, with automatic geocoding using Nominatim when lat/long not provided. Updates hourly by default, with robust null safety and detailed logging. Supports both PNG and SVG icons with standardized naming.
  * Changelog (Recent):
+ *   - v2.5.1 (Jun 03, 2025): Added custom date format for forecast table via new ForecastDateFormat option in INI file.
  *   - v2.5.0 (Jun 03, 2025): Major code improvements: Added constants for configuration values, enhanced null safety, improved async behavior, optimized large methods, improved error handling, and added better icon mapping.
  *   - v2.0.2 (Jun 02, 2025): Updated forecast table's Weather column to use human-readable descriptions from MapYrSymbolToDescription (e.g., "Moderate Rain" instead of "rainy-2").
  *   - v2.0.1 (Jun 02, 2025): Improved _weatherDesc formatting by mapping symbolCode to human-readable descriptions (e.g., "lightrain" to "Light Rain"), removing day/night suffixes, and applying title case.
@@ -28,10 +29,11 @@ namespace InfoPanel.MetYr
     public class YrWeatherPlugin : BasePlugin
     {
         // Constants
-        private const string VERSION = "2.5.0";
+        private const string VERSION = "2.5.1";
         private const string DEFAULT_LOCATION = "Oslo, Norway";
-        private const string DEFAULT_USER_AGENT = "InfoPanel-YrWeatherPlugin/2.5.0 (contact@example.com)";
+        private const string DEFAULT_USER_AGENT = "InfoPanel-YrWeatherPlugin/2.5.1 (contact@example.com)";
         private const string DEFAULT_DATE_FORMAT = "yyyy-MM-dd HH:mm";
+        private const string DEFAULT_FORECAST_DATE_FORMAT = "dddd dd MMM";
         private const int DEFAULT_REFRESH_INTERVAL = 60; // minutes
         private const int DEFAULT_FORECAST_DAYS = 5;
         private const string DEFAULT_TEMP_UNIT = "C";
@@ -65,6 +67,7 @@ namespace InfoPanel.MetYr
         private int _refreshIntervalMinutes = DEFAULT_REFRESH_INTERVAL;
         private DateTime _lastUpdateTime = DateTime.MinValue;
         private string _dateTimeFormat = DEFAULT_DATE_FORMAT;
+        private string _forecastDateFormat = DEFAULT_FORECAST_DATE_FORMAT;
         private double _utcOffsetHours = 0;
         private int _forecastDays = DEFAULT_FORECAST_DAYS;
         private string _temperatureUnit = DEFAULT_TEMP_UNIT;
@@ -102,7 +105,7 @@ namespace InfoPanel.MetYr
         {
             _httpClient.DefaultRequestHeaders.Add(
                 "User-Agent",
-                "InfoPanel-YrWeatherPlugin/2.5.0 (contact@example.com)"
+                "InfoPanel-YrWeatherPlugin/2.5.1 (contact@example.com)"
             );
             _temp = new PluginSensor("temp", "Temperature", 0, "°C");
             _feelsLike = new PluginSensor("feels_like", "Feels Like", 0, "°C");
@@ -158,6 +161,7 @@ namespace InfoPanel.MetYr
             config["Yr Weather Plugin"]["Longitude"] = "";
             config["Yr Weather Plugin"]["RefreshIntervalMinutes"] = DEFAULT_REFRESH_INTERVAL.ToString();
             config["Yr Weather Plugin"]["DateTimeFormat"] = DEFAULT_DATE_FORMAT;
+            config["Yr Weather Plugin"]["ForecastDateFormat"] = DEFAULT_FORECAST_DATE_FORMAT;
             config["Yr Weather Plugin"]["UtcOffsetHours"] = "0";
             config["Yr Weather Plugin"]["ForecastDays"] = DEFAULT_FORECAST_DAYS.ToString();
             config["Yr Weather Plugin"]["TemperatureUnit"] = DEFAULT_TEMP_UNIT;
@@ -172,6 +176,7 @@ namespace InfoPanel.MetYr
             _location = DEFAULT_LOCATION;
             _refreshIntervalMinutes = DEFAULT_REFRESH_INTERVAL;
             _dateTimeFormat = DEFAULT_DATE_FORMAT;
+            _forecastDateFormat = DEFAULT_FORECAST_DATE_FORMAT;
             _utcOffsetHours = 0;
             _forecastDays = DEFAULT_FORECAST_DAYS;
             _temperatureUnit = DEFAULT_TEMP_UNIT;
@@ -191,6 +196,9 @@ namespace InfoPanel.MetYr
 
             string formatFromIni = config["Yr Weather Plugin"]["DateTimeFormat"] ?? DEFAULT_DATE_FORMAT;
             _dateTimeFormat = ValidateDateTimeFormat(formatFromIni) ? formatFromIni : DEFAULT_DATE_FORMAT;
+
+            string forecastFormatFromIni = config["Yr Weather Plugin"]["ForecastDateFormat"] ?? DEFAULT_FORECAST_DATE_FORMAT;
+            _forecastDateFormat = ValidateDateTimeFormat(forecastFormatFromIni) ? forecastFormatFromIni : DEFAULT_FORECAST_DATE_FORMAT;
 
             if (!double.TryParse(config["Yr Weather Plugin"]["UtcOffsetHours"], NumberStyles.Any, CultureInfo.InvariantCulture, out _utcOffsetHours))
             {
@@ -230,6 +238,7 @@ namespace InfoPanel.MetYr
             Console.WriteLine($"Weather Plugin: Read location from INI: {_location}");
             Console.WriteLine($"Weather Plugin: Refresh interval set to: {_refreshIntervalMinutes} minutes");
             Console.WriteLine($"Weather Plugin: DateTime format set to: {_dateTimeFormat}");
+            Console.WriteLine($"Weather Plugin: Forecast date format set to: {_forecastDateFormat}");
             Console.WriteLine($"Weather Plugin: UTC offset hours set to: {_utcOffsetHours}");
             Console.WriteLine($"Weather Plugin: Forecast days set to: {_forecastDays}");
             Console.WriteLine($"Weather Plugin: Temperature unit set to: {_temperatureUnit}");
@@ -805,7 +814,7 @@ namespace InfoPanel.MetYr
             var row = dataTable.NewRow();
             
             // Add date column
-            string dateStr = day.ToString("dddd dd MMM", CultureInfo.InvariantCulture);
+            string dateStr = day.ToString(_forecastDateFormat, CultureInfo.InvariantCulture);
             row["Date"] = new PluginText($"date_{day:yyyyMMdd}", dateStr);
             
             // Add weather column with description

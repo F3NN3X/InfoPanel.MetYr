@@ -16,11 +16,24 @@
 
 ## Forecast Table Data
 The plugin provides a configurable forecast table (default 5 days) with:
-- **Date**: Day, date, month (e.g., "Tue 08 Apr").
+- **Date**: Customizable date format (default: "dddd dd MMM", e.g., "Tuesday 08 Apr"). Can be changed via `ForecastDateFormat` in the INI file.
 - **Weather**: Dominant condition (e.g., "cloudy", "rain"), from `next_6_hours` `symbol_code`, displayed as an icon.
 - **Temp**: Max/min temperature in chosen unit (e.g., "68°F / 64°F" or "20°C / 18°C").
 - **Precip**: Total precipitation in mm (e.g., "1.5 mm"), summed from `next_6_hours`.
 - **Wind**: Average speed in m/s and direction (e.g., "3.2 m/s SE").
+
+### Date Format Customization
+You can customize how dates appear in the forecast table using standard C# date format strings in the INI file's `ForecastDateFormat` setting. Some examples:
+
+| Format String | Result | Description |
+|---------------|--------|-------------|
+| `dddd dd MMM` | Tuesday 08 Apr | Full day name, day, abbreviated month (default) |
+| `ddd d MMM` | Tue 8 Apr | Abbreviated day name, day without leading zero, abbreviated month |
+| `dd/MM` | 08/04 | Numeric day/month |
+| `d MMMM` | 8 April | Day and full month name |
+| `dddd` | Tuesday | Full day name only |
+| `ddd` | Tue | Abbreviated day name only |
+| `MMMM d` | April 8 | Month name and day (US style) |
 
 Example output (Fahrenheit):
 | Date       | Weather      | Temp        | Precip | Wind     |
@@ -65,6 +78,7 @@ Latitude = -32.92953
 Longitude = 151.7801
 RefreshIntervalMinutes = 60
 DateTimeFormat = yyyy-MM-dd HH:mm
+ForecastDateFormat = dddd dd MMM
 UtcOffsetHours = 10
 ForecastDays = 7
 TemperatureUnit = F
@@ -74,6 +88,7 @@ IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/head
 - **Latitude/Longitude**: Optional exact coordinates (overrides geocoding).
 - **RefreshIntervalMinutes**: Refresh frequency (e.g., `60`).
 - **DateTimeFormat**: C# date format for "Last Refreshed" (e.g., `yyyy-MM-dd HH:mm`).
+- **ForecastDateFormat**: C# date format for dates in forecast table (e.g., `dddd dd MMM`).
 - **UtcOffsetHours**: Local time offset from UTC (e.g., `10` for AEST, `-4` for EDT).
 - **ForecastDays**: Days to forecast (`1-10`, default `5`).
 - **TemperatureUnit**: `C` for Celsius, `F` for Fahrenheit.
