@@ -75,7 +75,7 @@ IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/head
 - **UtcOffsetHours**: Local time offset from UTC (e.g., `10` for AEST, `-4` for EDT).
 - **ForecastDays**: Days to forecast (`1-10`, default `5`).
 - **TemperatureUnit**: `C` for Celsius, `F` for Fahrenheit.
-- **IconUrl**: Optional URL to a directory containing custom PNG or SVG icons (e.g., `https://github.com/Makin-Things/weather-icons/tree/main/static/`). If omitted or invalid, falls back to OpenWeatherMap icons.
+- **IconUrl**: Optional URL to a directory containing custom PNG or SVG icons (e.g., `https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/heads/main/static/`). If omitted or invalid, falls back to OpenWeatherMap icons.
 
 ### Custom Icon Configuration
 To use custom icons, set `IconUrl` to a directory containing PNG or SVG files named according to the plugin’s icon mapping. The plugin attempts to load `.svg` first, falling back to `.png` if the SVG is unavailable. Ensure the URL is accessible and points to a directory with the expected icon files.
