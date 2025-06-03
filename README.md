@@ -54,6 +54,7 @@ Example output (Fahrenheit):
 - Configure custom icons via the `IconUrl` setting in the INI file for alternative icon sets.
 
 ## Configuration
+On first load the plugin will automatically create default the .ini file. You will need to edit the .ini file with your details!
 Edit `InfoPanel.MetYr.dll.ini`:
 ```ini
 [Yr Weather Plugin]
