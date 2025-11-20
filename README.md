@@ -5,6 +5,7 @@
 **YrWeatherPlugin** is a plugin for the InfoPanel app that retrieves weather data from the [MET Norway Weather API](https://api.met.no/). It provides current weather conditions via the `nowcast/2.0/complete` endpoint (falling back to `locationforecast/2.0/complete` outside supported regions) and a configurable multi-day forecast table. Weather icons are sourced from [OpenWeatherMap](https://openweathermap.org/) by default, with support for custom icon sets via a configurable URL.
 
 ## Features
+
 - Fetches current weather data using user-defined latitude/longitude or geocoded location (e.g., "Newcastle, New South Wales (Australia)").
 - Displays metrics: temperature, feels-like temperature, humidity, pressure, wind speed/direction/gust, cloud cover, rain, and snow.
 - Configurable Forecast: Table with daily weather, temperature range (Celsius or Fahrenheit), precipitation, and wind for 1-10 days.
@@ -15,7 +16,9 @@
 - Seamless integration with InfoPanel’s UI, including sensor values and text fields.
 
 ## Forecast Table Data
+
 The plugin provides a configurable forecast table (default 5 days) with:
+
 - **Date**: Customizable date format (default: "dddd dd MMM", e.g., "Tuesday 08 Apr"). Can be changed via `ForecastDateFormat` in the INI file.
 - **Weather**: Dominant condition (e.g., "cloudy", "rain"), from `next_6_hours` `symbol_code`, displayed as an icon.
 - **Temp**: Max/min temperature in chosen unit (e.g., "68°F / 64°F" or "20°C / 18°C").
@@ -23,6 +26,7 @@ The plugin provides a configurable forecast table (default 5 days) with:
 - **Wind**: Average speed in m/s and direction (e.g., "3.2 m/s SE").
 
 ### Date Format Customization
+
 You can customize how dates appear in the forecast table using standard C# date format strings in the INI file's `ForecastDateFormat` setting. Some examples:
 
 | Format String | Result | Description |
@@ -36,6 +40,7 @@ You can customize how dates appear in the forecast table using standard C# date 
 | `MMMM d` | April 8 | Month name and day (US style) |
 
 Example output (Fahrenheit):
+
 | Date       | Weather      | Temp        | Precip | Wind     |
 |------------|--------------|-------------|--------|----------|
 | Tue 08 Apr | partlycloudy | 68°F / 64°F | 0.0 mm | 3.2 m/s SE |
@@ -45,23 +50,28 @@ Example output (Fahrenheit):
 | Sat 12 Apr | fair         | 73°F / 67°F | 0.0 mm | 2.5 m/s NW |
 
 ## Requirements
+
 - InfoPanel app (latest version recommended).
 
 ## Requirements to compile
+
 - .NET runtime compatible with InfoPanel.
 - Internet connection for MET Norway API, Nominatim geocoding, and icon fetching.
 
 ## Installation
+
 1. Download the latest release from GitHub.
 2. Import into InfoPanel via the "Import Plugin" feature.
 3. Edit `InfoPanel.MetYr.dll.ini` with your desired location and settings.
 
 ## Installation from Source
+
 1. Clone or download this repository.
 2. Build the project in a .NET environment.
 3. Copy compiled files to your InfoPanel plugins directory.
 
 ## Usage
+
 - Launch InfoPanel with the plugin loaded.
 - The plugin fetches weather data at the configured interval (default 60 minutes).
 - View current conditions and forecast in InfoPanel’s UI.
@@ -69,8 +79,10 @@ Example output (Fahrenheit):
 - Configure custom icons via the `IconUrl` setting in the INI file for alternative icon sets.
 
 ## Configuration
+
 On first load the plugin will automatically create default the .ini file. You will need to edit the .ini file with your details!
 Edit `InfoPanel.MetYr.dll.ini`:
+
 ```ini
 [Yr Weather Plugin]
 Location = Newcastle, New South Wales (Australia)
@@ -84,6 +96,7 @@ ForecastDays = 7
 TemperatureUnit = F
 IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/heads/main/static/
 ```
+
 - **Location**: City/region (used for geocoding if lat/long omitted).
 - **Latitude/Longitude**: Optional exact coordinates (overrides geocoding).
 - **RefreshIntervalMinutes**: Refresh frequency (e.g., `60`).
@@ -95,10 +108,12 @@ IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/head
 - [AVAILABLE WITH NEXT INFOPANEL RELEASE] **IconUrl**: Optional URL to a directory containing custom PNG or SVG icons (e.g., `https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/heads/main/static/`). If omitted or invalid, falls back to OpenWeatherMap icons.
 
 ### Custom Icon Configuration [AVAILABLE WITH NEXT INFOPANEL RELEASE]
+
 To use custom icons, set `IconUrl` to a directory containing PNG or SVG files named according to the plugin’s icon mapping. The plugin attempts to load `.svg` first, falling back to `.png` if the SVG is unavailable. Ensure the URL is accessible and points to a directory with the expected icon files.
 
 **Supported Icon Names**:
 The plugin maps MET Norway’s `symbol_code` to the following icon names, used as filenames (e.g., `clear-day.svg` or `clear-day.png`):
+
 - `clear-day`, `clear-night`
 - `cloudy-1-day`, `cloudy-1-night` (light clouds/fair)
 - `cloudy-2-day`, `cloudy-2-night` (partly cloudy)
@@ -118,12 +133,15 @@ The plugin maps MET Norway’s `symbol_code` to the following icon names, used a
 
 **Example**:
 For `IconUrl=https://example.com/icons/`, the plugin will try:
+
 - `https://example.com/icons/clear-day.svg` or `https://example.com/icons/clear-day.png` for `clearsky_day`.
 - Ensure all icon names above are available in the specified directory.
 
 **Example Icon Source**:
 Use the [weather-icons](https://github.com/Makin-Things/weather-icons) repository:
+
 ```ini
 IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/heads/main/static/
 ```
+
 This provides SVG and PNG icons matching the supported names.
