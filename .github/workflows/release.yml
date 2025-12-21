@@ -1,0 +1,111 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on tags like v1.0.0, v1.3.5, etc.
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest # Required for .NET Windows Forms / WPF apps
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore InfoPanel.MetYr/InfoPanel.MetYr.csproj
+
+    - name: Build Plugin
+      run: dotnet build InfoPanel.MetYr/InfoPanel.MetYr.csproj --configuration Release --no-restore
+
+    - name: Get Version from Project
+      id: get_version
+      shell: pwsh
+      run: |
+        # Read the version directly from the .csproj file using XPath to be more robust
+        [xml]$csproj = Get-Content "InfoPanel.MetYr/InfoPanel.MetYr.csproj"
+        $versionNode = $csproj.SelectSingleNode("//Version")
+        
+        if ($null -eq $versionNode) {
+            Write-Error "Could not find <Version> tag in .csproj file"
+            exit 1
+        }
+        
+        $version = $versionNode.InnerText.Trim()
+        echo "Detected Version: '$version'"
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+    - name: Package Plugin
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        # Path matches your project's specific output structure
+        $sourcePath = "InfoPanel.MetYr\bin\Release\net8.0-windows\InfoPanel.MetYr-v$version\InfoPanel.MetYr"
+        $zipName = "InfoPanel.MetYr-v$version.zip"
+        
+        if (Test-Path $sourcePath) {
+            Write-Host "Zipping build output from: $sourcePath"
+            # Zip the folder itself (without \*) so the archive contains the 'InfoPanel.MetYr' subfolder
+            Compress-Archive -Path "$sourcePath" -DestinationPath $zipName
+        } else {
+            Write-Error "Build output directory not found at $sourcePath. Check if the .csproj Version matches the folder structure."
+            exit 1
+        }
+
+    - name: Get Current Date
+      id: get_date
+      shell: pwsh
+      run: echo "DATE=$(Get-Date -Format 'yyyy-MM-dd')" >> $env:GITHUB_OUTPUT
+
+    - name: Extract Release Notes
+      id: extract_release_notes
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $changelog = Get-Content "CHANGELOG.md"
+        $recording = $false
+        $notes = @()
+        
+        foreach ($line in $changelog) {
+            if ($line -match "^## \[$version\]") {
+                $recording = $true
+                continue
+            }
+            if ($recording -and $line -match "^## \[") {
+                break
+            }
+            if ($recording) {
+                $notes += $line
+            }
+        }
+        
+        $body = $notes -join "`n"
+        $body = $body.Trim()
+        
+        if ([string]::IsNullOrWhiteSpace($body)) {
+            $body = "See CHANGELOG.md for details."
+        }
+        
+        $releaseNotesPath = "release_notes.md"
+        Set-Content -Path $releaseNotesPath -Value $body
+        echo "NOTES_PATH=$releaseNotesPath" >> $env:GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: InfoPanel.MetYr-v${{ steps.get_version.outputs.VERSION }}.zip
+        body_path: ${{ steps.extract_release_notes.outputs.NOTES_PATH }}
+        name: "v${{ steps.get_version.outputs.VERSION }} - ${{ steps.get_date.outputs.DATE }}"
+        draft: false
+        prerelease: false

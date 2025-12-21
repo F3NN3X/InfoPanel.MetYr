@@ -4,6 +4,7 @@ public record WeatherPluginConfiguration(
     string Location,
     string Latitude,
     string Longitude,
+    int? Altitude,
     int RefreshIntervalMinutes,
     string DateTimeFormat,
     string ForecastDateFormat,

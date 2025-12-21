@@ -2,6 +2,22 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [3.0.1] - 2025-12-21
+
+### Fixed
+
+- **Temperature Accuracy**: Fixed significant temperature discrepancies (up to 11°C) by adding altitude parameter support to MET API calls. Without altitude, the API uses a 1km resolution terrain model which can cause large errors in areas with varying elevation.
+- **Weather Icons Missing**: Resolved issue where weather icons showed "-" by switching from Nowcast API to Forecast API for current weather data. Nowcast doesn't include `symbol_code` in `next_1_hours` data.
+
+### Added
+
+- **Altitude Configuration**: New optional `Altitude` INI setting allows users to specify their location's elevation in meters above sea level for more accurate temperature readings.
+- **Documentation**: Added "Finding Your Altitude" section to README with instructions for determining elevation using Google Maps, online tools, and smartphone apps.
+
+### Changed
+
+- **API Strategy**: Now uses Forecast API exclusively for all weather data instead of prioritizing Nowcast. This ensures consistent symbol codes and altitude support.
+
 ## [3.0.0] - 2025-06-03
 
 ### Refactor

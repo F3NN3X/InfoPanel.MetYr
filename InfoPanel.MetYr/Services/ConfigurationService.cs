@@ -60,6 +60,7 @@ public class ConfigurationService
         config["Yr Weather Plugin"]["Location"] = DEFAULT_LOCATION;
         config["Yr Weather Plugin"]["Latitude"] = "";
         config["Yr Weather Plugin"]["Longitude"] = "";
+        config["Yr Weather Plugin"]["Altitude"] = "";
         config["Yr Weather Plugin"]["RefreshIntervalMinutes"] = DEFAULT_REFRESH_INTERVAL.ToString();
         config["Yr Weather Plugin"]["DateTimeFormat"] = DEFAULT_DATE_FORMAT;
         config["Yr Weather Plugin"]["ForecastDateFormat"] = DEFAULT_FORECAST_DATE_FORMAT;
@@ -76,6 +77,7 @@ public class ConfigurationService
             DEFAULT_LOCATION,
             "",
             "",
+            null,
             DEFAULT_REFRESH_INTERVAL,
             DEFAULT_DATE_FORMAT,
             DEFAULT_FORECAST_DATE_FORMAT,
@@ -92,6 +94,15 @@ public class ConfigurationService
         string? iconUrl = config["Yr Weather Plugin"]["IconUrl"]?.Trim();
         string latStr = config["Yr Weather Plugin"]["Latitude"]?.Trim() ?? "";
         string lonStr = config["Yr Weather Plugin"]["Longitude"]?.Trim() ?? "";
+
+        // Parse altitude (in meters above sea level) - optional but recommended for accurate temperatures
+        int? altitude = null;
+        string altStr = config["Yr Weather Plugin"]["Altitude"]?.Trim() ?? "";
+        if (!string.IsNullOrEmpty(altStr) && int.TryParse(altStr, out int altValue))
+        {
+            altitude = altValue;
+            Console.WriteLine($"Weather Plugin: Altitude set to {altitude}m");
+        }
 
         if (!int.TryParse(config["Yr Weather Plugin"]["RefreshIntervalMinutes"], out int refreshInterval) || refreshInterval <= 0)
             refreshInterval = DEFAULT_REFRESH_INTERVAL;
@@ -117,6 +128,7 @@ public class ConfigurationService
             location,
             latStr,
             lonStr,
+            altitude,
             refreshInterval,
             dateTimeFormat,
             forecastDateFormat,

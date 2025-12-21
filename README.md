@@ -2,11 +2,12 @@
 
 ## Overview
 
-**YrWeatherPlugin** is a plugin for the InfoPanel app that retrieves weather data from the [MET Norway Weather API](https://api.met.no/). It provides current weather conditions via the `nowcast/2.0/complete` endpoint (falling back to `locationforecast/2.0/complete` outside supported regions) and a configurable multi-day forecast table. Weather icons are sourced from [OpenWeatherMap](https://openweathermap.org/) by default, with support for custom icon sets via a configurable URL.
+**YrWeatherPlugin** is a plugin for the InfoPanel app that retrieves weather data from the [MET Norway Weather API](https://api.met.no/). It provides current weather conditions and a configurable multi-day forecast table using the `locationforecast/2.0/complete` endpoint. Weather icons are sourced from [OpenWeatherMap](https://openweathermap.org/) by default, with support for custom icon sets via a configurable URL.
 
 ## Features
 
 - Fetches current weather data using user-defined latitude/longitude or geocoded location (e.g., "Newcastle, New South Wales (Australia)").
+- **Altitude-corrected temperatures**: Optionally specify your elevation for accurate temperature readings.
 - Displays metrics: temperature, feels-like temperature, humidity, pressure, wind speed/direction/gust, cloud cover, rain, and snow.
 - Configurable Forecast: Table with daily weather, temperature range (Celsius or Fahrenheit), precipitation, and wind for 1-10 days.
 - Temperature Units: Supports Celsius (`C`) or Fahrenheit (`F`) via INI settings, converting MET/Yr’s Celsius data accordingly.
@@ -88,6 +89,7 @@ Edit `InfoPanel.MetYr.dll.ini`:
 Location = Newcastle, New South Wales (Australia)
 Latitude = -32.92953
 Longitude = 151.7801
+Altitude = 10
 RefreshIntervalMinutes = 60
 DateTimeFormat = yyyy-MM-dd HH:mm
 ForecastDateFormat = dddd dd MMM
@@ -99,6 +101,7 @@ IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/head
 
 - **Location**: City/region (used for geocoding if lat/long omitted).
 - **Latitude/Longitude**: Optional exact coordinates (overrides geocoding).
+- **Altitude**: Elevation in meters above sea level (recommended for accurate temperatures, see below).
 - **RefreshIntervalMinutes**: Refresh frequency (e.g., `60`).
 - **DateTimeFormat**: C# date format for "Last Refreshed" (e.g., `yyyy-MM-dd HH:mm`).
 - **ForecastDateFormat**: C# date format for dates in forecast table (e.g., `dddd dd MMM`).
@@ -106,6 +109,23 @@ IconUrl = https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/head
 - **ForecastDays**: Days to forecast (`1-10`, default `5`).
 - **TemperatureUnit**: `C` for Celsius, `F` for Fahrenheit.
 - [AVAILABLE WITH NEXT INFOPANEL RELEASE] **IconUrl**: Optional URL to a directory containing custom PNG or SVG icons (e.g., `https://raw.githubusercontent.com/Makin-Things/weather-icons/refs/heads/main/static/`). If omitted or invalid, falls back to OpenWeatherMap icons.
+
+### Finding Your Altitude
+
+The `Altitude` setting is **highly recommended** for accurate temperature readings. Without it, MET Norway uses a coarse 1km resolution terrain model that can be off by hundreds of meters in hilly areas, causing temperature errors of up to 6.5°C per 1000m difference.
+
+**How to find your altitude:**
+
+1. **Google Maps**: Right-click your location → "What's here?" → The elevation may be shown in the info card.
+2. **Google Earth**: Hover over your location and read the elevation in the bottom-right corner.
+3. **Online Tools**:
+   - [FreeMapTools Elevation Finder](https://www.freemaptools.com/elevation-finder.htm)
+   - [GPS Visualizer](https://www.gpsvisualizer.com/elevation)
+   - [What Is My Elevation](https://whatismyelevation.com/)
+4. **Smartphone**: Many GPS/compass apps show your current elevation.
+5. **Wikipedia**: Search for your city - elevation is often listed in the info box.
+
+**Example**: If your house is at 23 meters above sea level, set `Altitude = 23` in your INI file.
 
 ### Custom Icon Configuration [AVAILABLE WITH NEXT INFOPANEL RELEASE]
 

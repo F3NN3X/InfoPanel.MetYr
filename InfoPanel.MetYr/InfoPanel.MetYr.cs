@@ -14,7 +14,7 @@ using InfoPanel.MetYr.Services;
 
 /*
  * Plugin: InfoPanel.MetYr
- * Version: 2.5.1
+ * Version: 3.0.1
  * Author: F3NN3X
  * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions via nowcast (temperature, wind, precipitation, etc.) and a configurable forecast table via locationforecast. Falls back to locationforecast for current data if nowcast unavailable. Supports configurable locations (name or lat/long), temperature units (C/F), date formats, UTC offset adjustment, and custom icon URLs via an INI file, with automatic geocoding using Nominatim when lat/long not provided. Updates hourly by default, with robust null safety and detailed logging. Supports both PNG and SVG icons with standardized naming.
  * Changelog (Recent):
@@ -30,7 +30,7 @@ namespace InfoPanel.MetYr
 {
     public class YrWeatherPlugin : BasePlugin
     {
-        private const string VERSION = "3.0.0";
+        private const string VERSION = "3.0.1";
 
         private readonly ConfigurationService _configurationService;
         private readonly WeatherService _weatherService;
@@ -125,6 +125,7 @@ namespace InfoPanel.MetYr
             Console.WriteLine($"Weather Plugin: UTC offset hours set to: {_config.UtcOffsetHours}");
             Console.WriteLine($"Weather Plugin: Forecast days set to: {_config.ForecastDays}");
             Console.WriteLine($"Weather Plugin: Temperature unit set to: {_config.TemperatureUnit}");
+            Console.WriteLine($"Weather Plugin: Altitude set to: {(_config.Altitude.HasValue ? $"{_config.Altitude}m" : "not specified (using API default)")}");
         }
 
         public override void Update() => throw new NotImplementedException();
@@ -159,13 +160,13 @@ namespace InfoPanel.MetYr
 
                 if (!cancellationToken.IsCancellationRequested)
                 {
-                    var weatherData = await _weatherService.GetCurrentWeatherAsync(_latitude, _longitude, cancellationToken);
+                    var weatherData = await _weatherService.GetCurrentWeatherAsync(_latitude, _longitude, _config.Altitude, cancellationToken);
                     if (weatherData != null)
                     {
                         UpdateWeatherData(weatherData);
                     }
 
-                    var forecastData = await _weatherService.GetForecastAsync(_latitude, _longitude, cancellationToken);
+                    var forecastData = await _weatherService.GetForecastAsync(_latitude, _longitude, _config.Altitude, cancellationToken);
                     if (forecastData != null)
                     {
                         UpdateForecastTable(forecastData);
