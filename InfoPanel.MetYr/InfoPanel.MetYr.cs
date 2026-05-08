@@ -14,23 +14,17 @@ using InfoPanel.MetYr.Services;
 
 /*
  * Plugin: InfoPanel.MetYr
- * Version: 3.0.1
+ * Version: 3.0.2
  * Author: F3NN3X
- * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions via nowcast (temperature, wind, precipitation, etc.) and a configurable forecast table via locationforecast. Falls back to locationforecast for current data if nowcast unavailable. Supports configurable locations (name or lat/long), temperature units (C/F), date formats, UTC offset adjustment, and custom icon URLs via an INI file, with automatic geocoding using Nominatim when lat/long not provided. Updates hourly by default, with robust null safety and detailed logging. Supports both PNG and SVG icons with standardized naming.
- * Changelog (Recent):
- *   - v2.5.1 (Jun 03, 2025): Added custom date format for forecast table via new ForecastDateFormat option in INI file.
- *   - v2.5.0 (Jun 03, 2025): Major code improvements: Added constants for configuration values, enhanced null safety, improved async behavior, optimized large methods, improved error handling, and added better icon mapping.
- *   - v2.0.2 (Jun 02, 2025): Updated forecast table's Weather column to use human-readable descriptions from MapYrSymbolToDescription (e.g., "Moderate Rain" instead of "rainy-2").
- *   - v2.0.1 (Jun 02, 2025): Improved _weatherDesc formatting by mapping symbolCode to human-readable descriptions (e.g., "lightrain" to "Light Rain"), removing day/night suffixes, and applying title case.
- *   - v2.0.0 (Jun 02, 2025): Consolidated changes: fixed compilation errors, added null reference checks, updated icon mapping, corrected duplicate class definitions, ensured hyphenated icon file names, changed wind direction labels to abbreviations, and moved plugin info text below using statements.
- * Note: Full history in CHANGELOG.md. Requires internet access for API calls.
+ * Description: An InfoPanel plugin for retrieving weather data from MET Norway's Yr API (api.met.no). Provides current weather conditions and a configurable forecast table via locationforecast/2.0/complete. Supports configurable locations (name or lat/long), altitude correction, temperature units (C/F), date formats, UTC offset adjustment, and custom icon URLs via an INI file, with automatic geocoding using Nominatim when lat/long not provided. Updates hourly by default. Supports both PNG and SVG icons with standardized naming.
+ * Note: Full version history in CHANGELOG.md. Requires internet access for API calls.
  */
 
 namespace InfoPanel.MetYr
 {
     public class YrWeatherPlugin : BasePlugin
     {
-        private const string VERSION = "3.0.1";
+        private const string VERSION = "3.0.2";
 
         private readonly ConfigurationService _configurationService;
         private readonly WeatherService _weatherService;
@@ -78,8 +72,10 @@ namespace InfoPanel.MetYr
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Add(
                 "User-Agent",
-                $"InfoPanel-YrWeatherPlugin/{VERSION} (contact@example.com)"
+                $"InfoPanel-YrWeatherPlugin/{VERSION} (+https://github.com/F3NN3X/InfoPanel.MetYr)"
             );
+            Console.WriteLine($"Weather Plugin: HTTP User-Agent = '{httpClient.DefaultRequestHeaders.UserAgent}'");
+            Console.WriteLine($"Weather Plugin: Plugin VERSION = {VERSION}");
 
             _configurationService = new ConfigurationService();
             _weatherService = new WeatherService(httpClient);
@@ -111,7 +107,18 @@ namespace InfoPanel.MetYr
             }
 
             // Validate icon URL async
-            Task.Run(() => _iconService.ValidateIconUrlAsync(_config.IconUrl));
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _iconService.ValidateIconUrlAsync(_config.IconUrl);
+                    Console.WriteLine("Weather Plugin: Icon URL validation task completed.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Weather Plugin: Icon URL validation task threw: {ex.GetType().Name}: {ex.Message}");
+                }
+            });
 
             LogConfigurationSummary();
         }
@@ -136,6 +143,7 @@ namespace InfoPanel.MetYr
 
             var now = DateTime.UtcNow;
             Console.WriteLine($"Weather Plugin: UpdateAsync called at {now:yyyy-MM-ddTHH:mm:ssZ}");
+            var sw = Stopwatch.StartNew();
 
             try
             {
@@ -154,7 +162,7 @@ namespace InfoPanel.MetYr
                         // Fallback
                         _latitude = 1.3521; // Singapore
                         _longitude = 103.8198;
-                        Console.WriteLine($"Weather Plugin: Using default fallback coordinates: {_latitude}, {_longitude}");
+                        Console.WriteLine($"Weather Plugin: WARNING - geocoding for '{_config.Location}' returned no result. Falling back to SINGAPORE ({_latitude}, {_longitude}). Weather shown is for Singapore, NOT '{_config.Location}'. Set Latitude/Longitude in the INI to fix.");
                     }
                 }
 
@@ -164,12 +172,22 @@ namespace InfoPanel.MetYr
                     if (weatherData != null)
                     {
                         UpdateWeatherData(weatherData);
+                        Console.WriteLine("Weather Plugin: Current weather data updated successfully.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Weather Plugin: Current weather data was NULL - UI values NOT updated this cycle.");
                     }
 
                     var forecastData = await _weatherService.GetForecastAsync(_latitude, _longitude, _config.Altitude, cancellationToken);
                     if (forecastData != null)
                     {
                         UpdateForecastTable(forecastData);
+                        Console.WriteLine($"Weather Plugin: Forecast table updated with {forecastData.Length} timeseries entries.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Weather Plugin: Forecast data was NULL - forecast table NOT updated this cycle.");
                     }
 
                     _lastUpdateTime = DateTime.UtcNow;
@@ -178,7 +196,12 @@ namespace InfoPanel.MetYr
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Weather Plugin: Error in UpdateAsync: {ex.Message}");
+                Console.WriteLine($"Weather Plugin: Error in UpdateAsync after {sw.ElapsedMilliseconds}ms: {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"Weather Plugin: Stack: {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
+            }
+            finally
+            {
+                Console.WriteLine($"Weather Plugin: UpdateAsync completed in {sw.ElapsedMilliseconds}ms");
             }
         }
 

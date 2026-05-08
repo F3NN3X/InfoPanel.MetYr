@@ -2,6 +2,28 @@
 
 All notable changes to the YrWeatherPlugin will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format.
 
+## [3.0.2] - 2026-05-08
+
+### Fixed
+
+- **API access restored**: MET Norway and Nominatim both started returning HTTP 403 to the previous `User-Agent` because the contact field used the placeholder `contact@example.com`. Both services blocklist `example.com` per their usage policies. Replaced the contact with the project repository URL (`+https://github.com/F3NN3X/InfoPanel.MetYr`), which satisfies both providers' identification requirements without leaking a personal email from every install.
+
+### Added
+
+- **Verbose diagnostic logging** to make future API regressions immediately visible in the InfoPanel log panel:
+  - User-Agent string and plugin version printed at startup.
+  - HTTP failure responses now log status code AND first 1000 chars of the response body (previously only the status code was logged).
+  - JSON deserialization is wrapped in try/catch and distinct branches log when the parse returns null, when `Properties` is null (schema drift), when `Timeseries` is null, or when it is empty.
+  - Geocoding now logs explicit messages for null deserialize, "0 results" responses, and non-success bodies.
+  - Singapore fallback (used when geocoding fails) is now a loud `WARNING` line that names the user's intended location, so users no longer silently see Singapore weather.
+  - `UpdateAsync` is timed via `Stopwatch` and logs elapsed milliseconds plus the exception type and first stack frame on failure.
+  - Icon URL validation `Task.Run` is now wrapped with a try/catch that logs unobserved exceptions.
+  - Per-cycle log lines confirm whether the current weather and forecast were actually updated or skipped due to null payloads.
+
+### Changed
+
+- Trimmed the inline plugin-info comment block in `InfoPanel.MetYr.cs` to point at `CHANGELOG.md` for full history rather than duplicating outdated entries.
+
 ## [3.0.1] - 2025-12-21
 
 ### Fixed

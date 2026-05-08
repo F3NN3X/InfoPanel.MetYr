@@ -47,7 +47,26 @@ public class WeatherService
         {
             var forecastJson = await forecastResponse.Content.ReadAsStringAsync(cancellationToken);
             Console.WriteLine($"Weather Plugin: Forecast response (first 500 chars): {forecastJson.Substring(0, Math.Min(forecastJson.Length, 500))}...");
-            var forecast = JsonSerializer.Deserialize<YrForecast>(forecastJson, _jsonOptions);
+
+            YrForecast? forecast;
+            try
+            {
+                forecast = JsonSerializer.Deserialize<YrForecast>(forecastJson, _jsonOptions);
+            }
+            catch (JsonException jex)
+            {
+                Console.WriteLine($"Weather Plugin: Forecast JSON deserialize FAILED: {jex.Message}. Body length: {forecastJson.Length}.");
+                return null;
+            }
+
+            if (forecast == null)
+                Console.WriteLine("Weather Plugin: Forecast deserialized to NULL (body parsed but root object is null).");
+            else if (forecast.Properties == null)
+                Console.WriteLine("Weather Plugin: Forecast.Properties is NULL (schema drift?).");
+            else if (forecast.Properties.Timeseries == null)
+                Console.WriteLine("Weather Plugin: Forecast.Properties.Timeseries is NULL.");
+            else if (forecast.Properties.Timeseries.Length == 0)
+                Console.WriteLine("Weather Plugin: Forecast.Properties.Timeseries is EMPTY (length 0).");
 
             if (forecast?.Properties?.Timeseries?.Length > 0)
             {
@@ -67,7 +86,9 @@ public class WeatherService
         }
         else
         {
-            Console.WriteLine($"Weather Plugin: Forecast API call failed: {forecastResponse.StatusCode}");
+            string failBody = "";
+            try { failBody = await forecastResponse.Content.ReadAsStringAsync(cancellationToken); } catch { }
+            Console.WriteLine($"Weather Plugin: Forecast API call failed: {(int)forecastResponse.StatusCode} {forecastResponse.StatusCode}. Body (first 1000 chars): {failBody.Substring(0, Math.Min(failBody.Length, 1000))}");
         }
 
         return currentTimeseries;
@@ -88,7 +109,26 @@ public class WeatherService
         {
             var forecastJson = await forecastResponse.Content.ReadAsStringAsync(cancellationToken);
             Console.WriteLine($"Weather Plugin: Forecast response (first 500 chars): {forecastJson.Substring(0, Math.Min(forecastJson.Length, 500))}...");
-            var forecast = JsonSerializer.Deserialize<YrForecast>(forecastJson, _jsonOptions);
+
+            YrForecast? forecast;
+            try
+            {
+                forecast = JsonSerializer.Deserialize<YrForecast>(forecastJson, _jsonOptions);
+            }
+            catch (JsonException jex)
+            {
+                Console.WriteLine($"Weather Plugin: Forecast JSON deserialize FAILED: {jex.Message}. Body length: {forecastJson.Length}.");
+                return null;
+            }
+
+            if (forecast == null)
+                Console.WriteLine("Weather Plugin: Forecast deserialized to NULL (body parsed but root object is null).");
+            else if (forecast.Properties == null)
+                Console.WriteLine("Weather Plugin: Forecast.Properties is NULL (schema drift?).");
+            else if (forecast.Properties.Timeseries == null)
+                Console.WriteLine("Weather Plugin: Forecast.Properties.Timeseries is NULL.");
+            else if (forecast.Properties.Timeseries.Length == 0)
+                Console.WriteLine("Weather Plugin: Forecast.Properties.Timeseries is EMPTY (length 0).");
 
             if (forecast?.Properties?.Timeseries?.Length > 0)
             {
@@ -101,7 +141,9 @@ public class WeatherService
         }
         else
         {
-            Console.WriteLine($"Weather Plugin: Forecast failed: {forecastResponse.StatusCode}");
+            string failBody = "";
+            try { failBody = await forecastResponse.Content.ReadAsStringAsync(cancellationToken); } catch { }
+            Console.WriteLine($"Weather Plugin: Forecast failed: {(int)forecastResponse.StatusCode} {forecastResponse.StatusCode}. Body (first 1000 chars): {failBody.Substring(0, Math.Min(failBody.Length, 1000))}");
         }
 
         return null;
